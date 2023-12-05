@@ -22,11 +22,31 @@ knitr::opts_chunk$set(
 
 # Statement of Need
 
-# Related Work
+## Challenges
 
-# *OpenGender* Features
+## State of the Field
+
+# Approach
+
+# Functionality
+
+## Reference Dictionary Management and Standardization
+
+## Input Standardization
+
+## Fuzzy Matching
+
+## Performance, Reproducibility & Robustness  
+
+## Matching Adjustments
+
+## Uncertainty Estimation and Propagation
+
+## Tidy Syntax
 
 # Using *OpenGender*
+
+# Ongoing Work
 
 # Acknowledgements
 

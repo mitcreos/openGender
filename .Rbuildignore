@@ -2,3 +2,7 @@
 ^renv\.lock$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^opengender\.Rproj$
+^LICENSE\.md$
+^README\.Rmd$
+^cran-comments\.md$

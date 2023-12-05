@@ -1,0 +1,53 @@
+- Data files:
+   - built-in for testing
+   - download framework
+   - cached API resuts
+   - appdirs selection
+
+- Dependencies manage
+  - magrittr pipe
+  - dplyr
+  - purrr insistent, etc
+
+  Test framework
+
+Corrections
+ - year trend
+ - country
+
+ Uncertainty
+ - baseline sample size correction
+ - gender probability propagation
+
+Robustness
+- API backoff/retry
+- API key
+- Missing country
+- Missing probabiility
+- Missing year
+- Name cleaning
+- Fuzzy matching
+
+Performance
+- caching API
+- distinct matches only
+
+Reproducibility
+- stored matchings
+- provenance
+- API retrieval timestanmp
+
+Docs
+- functions
+- user docs
+- vignette article
+- vignette tutorial
+- learnr tutorial
+- contributor docs
+- installation docs
+
+Site:
+- packagedown
+- badges
+
+Git CI hooks

@@ -5,6 +5,7 @@ vignette: >
   %\VignetteIndexEntry{opengender_article}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+bibliography: references.bib
 ---
 
 ```{r, include = FALSE}
@@ -48,6 +49,10 @@ knitr::opts_chunk$set(
 
 # Ongoing Work
 
+This package is part of the *Community Tracking Indicators* project, an initiative to develop standardized indicators that describe the volume and types of open science output systematically over time, using existing open data sources. It functions as a standalone tool in an open pipeline describe a replicable to clean, integrate, code, and analyze multiple bibliometric sources to enable continuous publication of indicators. See [@altman_designing_2022] for a description of the overall pipeline, and preliminary results from this initiative.
+
 # Acknowledgements
+
+Authors gratefully acknowledge support from IMLS (#LG-250130-OLS-21).
 
 # References

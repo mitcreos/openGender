@@ -28,6 +28,16 @@ Robustness
 - Name cleaning
 - Fuzzy matching
 
+Data
+- Wikidata
+- Kantrowicz
+- IPUMS
+- SSA
+- NAPP
+- GenderAPI
+- GenderIze
+- World Names
+
 Performance
 - caching API
 - distinct matches only

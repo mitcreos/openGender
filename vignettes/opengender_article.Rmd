@@ -23,11 +23,47 @@ knitr::opts_chunk$set(
 
 # Statement of Need
 
-## Challenges
+Because no systematic public data on self-reported characteristics exists, however, research on must use bibliometric methods to impute gender from many bibliomatric purposes. (See, for example, Larivière et al. 2013)
 
 ## State of the Field
 
+Many ad-hoc and out-of-date tools. NLTK toolkit. Based on names 'well-known' to authors.
+
+State of the practice methods for analysis are based on commonly used in scientometric analysis and which is based on analysis of historical censuses (Blevins and Mullen 2015) to impute gender based on author names. Adjustment for year and country. Based on SSA, IPUMS db. Out of date by a decade.
+
+. This method is intended for aggregate analysis and coarse (binary) classification and not for individual-level analysis -- e.g., assigning a pronoun to a specific author. We applied the genderize method [36], based on individual self-identification of gender on social media platforms. We use propensity-weights (proportions of the name-gender assignment in the observed population) to compute aggregate estimates -- this yields unbiased summary statistics. Although we do not report confidence intervals within these tables, these are relatively narrow because each subgroup contains thousands to hundreds of thousands of samples. As a sensitivity check for measurement error, we replicated our analyses using the IPUMS corpus of historical censuses [37] -- as it is the most extensive alternative corpus available. The substantive conclusions reported below are robust to the choice of gender extraction method.
+
+Large dictionary collection WGEN2
+
+API's. Large set. Commercially costly. Irreproducible.
+
+Code to M/F.
+
+## Challenges
+
+Out of date data.
+
+Tools are designed around a single corpus or set of corpuses.
+
+Inconsistencies in name normalization and interfaces
+
+Irreproducibiliy.
+
+Fragile -- missin data, failed api calls,
+
+No measures of uncertainty.
+
 # Approach
+
+Design for honest uncertainty, as part of a modular, reproducible, robust, efffcient data pipeline.
+
+Tidy design principles.
+
+Uniform interface for built-in data, external database, API.
+
+Ability to combine multiple databases for multi-country analysis.
+
+Uncertainty: uncertainty propagation, resampling methods based, estimation of bernoulli parameter.
 
 # Functionality
 
@@ -37,7 +73,7 @@ knitr::opts_chunk$set(
 
 ## Fuzzy Matching
 
-## Performance, Reproducibility & Robustness  
+## Performance, Reproducibility & Robustness
 
 ## Matching Adjustments
 

@@ -22,7 +22,7 @@ og_init_dict<-function() {
     ~name, ~desc, ~type, ~loader,  ~uri,
     "wgen2",   "world gender dictionary 2.0", "external", "wgen", "",
     "kantro",  "kantowitz NLTK dictionary", "internal", "internal", "",
-    "genderize",  "kantowitz NLTK dictionary", "api", "genderize", ""
+    "genderize",  "genderize", "api", "genderize", ""
   )
 }
 

@@ -1,10 +1,11 @@
 ---
 title: "opengender_article"
-output: rmarkdown::html_vignette
+output: 
+  rmarkdown::html_vignette:
 vignette: >
   %\VignetteIndexEntry{opengender_article}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
 bibliography: references.bib
 ---
 
@@ -85,7 +86,7 @@ Uncertainty: uncertainty propagation, resampling methods based, estimation of be
 
 ## Uncertainty Estimation and Propagation
 
-## Tidy Syntax for Pipelined Data Mining
+## Tidy Syntax for Pipelined Data 
 
 # Using *OpenGender*
 
@@ -108,5 +109,3 @@ NASEM, 2022, Measuring Sex, Gender Identity, and Sexual Orientation . NASEM 2022
 Sebo, Paul. "Performance of gender detection tools: a comparative study of name-to-gender inference services." Journal of the Medical Library Association: JMLA 109, no. 3 (2021): 414.
 
 Fausto-Sterling, A., 2008. Myths of gender: Biological theories about women and men. Basic Books. Butler, Judith. Gender trouble. routledge, 2002. Ceci, Stephen J., Shulamit Kahn, and Wendy M. Williams. "Exploring gender bias in six key domains of academic science: An adversarial collaboration." Psychological Science in the Public Interest (2023): 15291006231163179. De Kleijn, M, Jayabalasingham, B, Falk-Krzesinski, HJ, Collins, T, Kuiper-Hoyng, L, Cingolani, I, Zhang, J, Roberge, G, et al: The Researcher Journey Through a Gender Lens: An Examination of Research Participation, Career Progression and Perceptions Across the Globe (Elsevier, March 2020) Retrieved from www.elsevier.com/gender-report
-
-W

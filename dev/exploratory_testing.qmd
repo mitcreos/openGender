@@ -1,0 +1,8 @@
+#
+# Kantrowitz Corpus Extraction
+# 
+### Source: NLTK
+###
+###
+### author: Mark Kantrowitz and Bill Ross; copyright: Copyright (C) 1991; Used in NLTK Book
+

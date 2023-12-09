@@ -23,7 +23,13 @@ knitr::opts_chunk$set(
 
 # Statement of Need
 
-Because no systematic public data on self-reported characteristics exists, however, research on must use bibliometric methods to impute gender from many bibliomatric purposes. (See, for example, Larivière et al. 2013)
+Gender affects treatment and outcomes in many human systems ...
+
+Gender is a multidimensional concept ... [NASEM] [Fausto-Sterling] [Holly-falk cites
+
+Direct measures ... most useful for individual treatment, interaction and communication [NASEM]
+
+Inputation is widely used ... Because no systematic public data on self-reported characteristics exists, however, research on must use bibliometric methods to impute gender from many bibliometric purposes. (See, for example, Larivière et al. 2013) Name is also an important signal gender that predicts how others will treat you in the absence of additional information -- e.g. for citation behavior, resume stuies.
 
 ## State of the Field
 
@@ -43,7 +49,7 @@ Code to M/F.
 
 Out of date data.
 
-Tools are designed around a single corpus or set of corpuses.
+Tools are designed around a single corpus or small set of corpora.
 
 Inconsistencies in name normalization and interfaces
 
@@ -79,7 +85,7 @@ Uncertainty: uncertainty propagation, resampling methods based, estimation of be
 
 ## Uncertainty Estimation and Propagation
 
-## Tidy Syntax
+## Tidy Syntax for Pipelined Data Mining
 
 # Using *OpenGender*
 
@@ -92,3 +98,15 @@ This package is part of the *Community Tracking Indicators* project, an initiati
 Authors gratefully acknowledge support from IMLS (#LG-250130-OLS-21).
 
 # References
+
+[to add]
+
+NASEM, 2022, Measuring Sex, Gender Identity, and Sexual Orientation . NASEM 2022, Measuring Gender Identity and Transgender. Blevins, Cameron, and Lincoln Mullen. "Jane, John... Leslie? A Historical Method for Algorithmic Gender Prediction." DHQ: Digital Humanities Quarterly 9, no. 3 (2015). National Academies of Sciences, Engineering, and Medicine. 2022. Measuring Sex, Gender Identity, and Sexual Orientation. Washington, DC: The National Academies Press. Martínez, Gema Lax, et al. Expanding the World Gender-Name Dictionary: WGND 2.0. No. 64. World Intellectual Property Organization-Economics and Statistics Division, 2021.
+
+[Related data] Raffo, Julio, 2021, "WGND 2.0", <https://doi.org/10.7910/DVN/MSEGSJ>, Harvard Dataverse, V1, UNF:6:5rI3h1mXzd6zkVhHurelLw==
+
+Sebo, Paul. "Performance of gender detection tools: a comparative study of name-to-gender inference services." Journal of the Medical Library Association: JMLA 109, no. 3 (2021): 414.
+
+Fausto-Sterling, A., 2008. Myths of gender: Biological theories about women and men. Basic Books. Butler, Judith. Gender trouble. routledge, 2002. Ceci, Stephen J., Shulamit Kahn, and Wendy M. Williams. "Exploring gender bias in six key domains of academic science: An adversarial collaboration." Psychological Science in the Public Interest (2023): 15291006231163179. De Kleijn, M, Jayabalasingham, B, Falk-Krzesinski, HJ, Collins, T, Kuiper-Hoyng, L, Cingolani, I, Zhang, J, Roberge, G, et al: The Researcher Journey Through a Gender Lens: An Examination of Research Participation, Career Progression and Perceptions Across the Globe (Elsevier, March 2020) Retrieved from www.elsevier.com/gender-report
+
+W

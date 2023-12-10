@@ -20,8 +20,8 @@
 og_init_dict<-function() {
   tibble::tribble(
     ~name, ~desc, ~version, ~type, ~loader,  ~uri,
-    "wgen2",   "world gender dictionary", 2, "external", "wgen", "",
-    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "internal", "",
+    "wgen2",   "world gender dictionary", 2, "external", "wgen", "https://dataverse.harvard.edu/api/access/datafile/4750352",
+    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "internal", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip",
     "genderize",  "genderize", 1,  "api", "genderize", ""
   )
 }
@@ -48,17 +48,23 @@ og_find_datair <- function() {
   tmpd
 }
 
-
 list_dict <- function() {
   .pkgenv[["dicts"]][c("name","desc","type")]
 }
 
 load_dict <- function(name="kantro") {
+# TODO:
+    calll()
+}
 
+og_normalize_dict<-function(x) {
+  x
 }
 
 og_load_dict_internal <- function(name, url) {
   data(name,package="opengender")
+  assign(paste0(name,"_dict"), og_normalize_dict(name),  envir=.pkgenv)
+  invisible(TRUE)
 }
 
 og_load_dict_external <- function(name, url) {

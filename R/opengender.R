@@ -3,7 +3,7 @@
 .onLoad <- function(libname, pkgname) {
 
    myDd <- og_find_workingdir()
-   myCd <- og_find_workingdir()
+   myCd <- og_find_cachedir()
 
   .pkgenv[["dicts"]] <- og_init_dict()
    myOpt <- list(
@@ -19,29 +19,35 @@
 
 og_init_dict<-function() {
   tibble::tribble(
-    ~name, ~desc, ~type, ~loader,  ~uri,
-    "wgen2",   "world gender dictionary 2.0", "external", "wgen", "",
-    "kantro",  "kantowitz NLTK dictionary", "internal", "internal", "",
-    "genderize",  "genderize", "api", "genderize", ""
+    ~name, ~desc, ~version, ~type, ~loader,  ~uri,
+    "wgen2",   "world gender dictionary", 2, "external", "wgen", "",
+    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "internal", "",
+    "genderize",  "genderize", 1,  "api", "genderize", ""
   )
 }
 
-og_find_workingdir <- function() {
-  rappdirs::user_data_dir(
+og_find_cachedir <- function() {
+  tmpd <- rappdirs::user_cache_dir(
     appname = "opengender",
     appauthor = appname
   )
-
-  # TODO: makedir or fail to temp
+  if (!dir.exists(tmpd) & !dir.create(tmpd, recursive=TRUE)) {
+    tmpd <- tmpdir(check=TRUE)
   }
+  tmpd
+}
 
-og_find_workingdir <- function() {
-  rappdirs::user_cache_dir(
+og_find_datair <- function() {
+  tmpd <- rappdirs::user_cache_dir(
     appname = "opengender",
     appauthor = appname
   )
-  # TODO: makedir or fail to temp
+  if (!dir.exists(tmpd) & !dir.create(tmpd, recursive=TRUE)) {
+    tmpd <- tmpdir(check=TRUE)
   }
+  tmpd
+}
+
 
 list_dict <- function() {
   .pkgenv[["dicts"]][c("name","desc","type")]
@@ -51,14 +57,14 @@ load_dict <- function(name="kantro") {
 
 }
 
-og_load_dict_internal <- function(url) {
+og_load_dict_internal <- function(name, url) {
+  data(name,package="opengender")
+}
+
+og_load_dict_external <- function(name, url) {
 
 }
 
-og_load_dict_external <- function(url) {
-
-}
-
-og_load_dict_genderize <- function(url) {
+og_load_dict_api <- function(name, url) {
 
 }

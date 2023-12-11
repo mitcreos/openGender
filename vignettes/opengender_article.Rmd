@@ -68,9 +68,11 @@ Tidy design principles.
 
 Uniform interface for built-in data, external database, API.
 
+Combine databases, cache data, byod
+
 Ability to combine multiple databases for multi-country analysis.
 
-Uncertainty: uncertainty propagation, resampling methods based, estimation of bernoulli parameter.
+Uncertainty: uncertainty propagation, resampling methods based, estimation of bernoulli parameter
 
 # Functionality
 
@@ -86,7 +88,7 @@ Uncertainty: uncertainty propagation, resampling methods based, estimation of be
 
 ## Uncertainty Estimation and Propagation
 
-## Tidy Syntax for Pipelined Data 
+## Tidy Syntax for Pipelined Data
 
 # Using *OpenGender*
 

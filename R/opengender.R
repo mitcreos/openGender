@@ -22,7 +22,6 @@ OG_DICT_FILE_EXT <- ".rds"
     options(myOpt)
 }
 
-
 og_init_dict<-function() {
   tibble::tribble(
     ~name, ~desc, ~version, ~type, ~loader,  ~uri,
@@ -111,6 +110,11 @@ og_normalize_dict<-function(x) {
 og_load_dict_internal <- function(name, entry) {
   data(name,package="opengender")
   assign(og_gen_dictname(name), og_normalize_dict(name),  envir=.pkgenv)
+  invisible(TRUE)
+}
+
+og_load_dict_imported <- function(name, entry) {
+  #TODO
   invisible(TRUE)
 }
 

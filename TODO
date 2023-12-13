@@ -39,7 +39,7 @@ Data
 - World Names
 
 Performance
-- caching API
+- memoise caching API
 - distinct matches only
 
 Reproducibility

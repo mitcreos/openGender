@@ -1,14 +1,18 @@
+
+# Package: Constants --------------------------------------------------------
 OG_DICT_EXT <- "_dict"
 OG_DICT_FILE_EXT <- ".rds"
 
+# Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent=emptyenv())
 
+# Internals: Startup --------------------------------------------------------
 .onLoad <- function(libname, pkgname) {
 
    myDd <- og_find_workingdir()
    myCd <- og_find_cachedir()
 
-  .pkgenv[["dicts"]] <- og_init_dict()
+  .pkgenv[["dicts"]] <- og_init_dictlist()
   .pkgenv[["cacheobj"]] <- og_init_cache()
    myOpt <- list(
        opengender.datadir = myDd,
@@ -22,7 +26,7 @@ OG_DICT_FILE_EXT <- ".rds"
     options(myOpt)
 }
 
-og_init_dict<-function() {
+og_init_dictlist<-function() {
   tibble::tribble(
     ~name, ~desc, ~version, ~type, ~loader,  ~uri,
     "wgen2",   "world gender dictionary", 2, "external", "wgen", "https://dataverse.harvard.edu/api/access/datafile/4750352",
@@ -37,7 +41,7 @@ og_init_cache<-function() {
     dir=options()[["opengender.cachedir"]],
     max_size = options()[["opengender.cachesize"]],
     max_age = options()[["opengender.cacheage"]]
-    )
+  )
 
   cacheobj
 }
@@ -67,43 +71,13 @@ og_find_datadir <- function() {
   tmpd
 }
 
-list_dict <- function() {
-  .pkgenv[["dicts"]][c("name","desc","type")]
-}
-
-load_dict <- function(name="kantro", force=FALSE) {
-    dict_entry <-  .pkgenv[["dicts"]] %>% select('name'=name)
-    if (dim(dict_entry)[1]!=1) {
-      stop("Dictionary not found ", name)
-    }
-
-    if (!force && exists(og_gen_dictname(name), envir=.pkgenv) ) {
-        return(TRUE)
-    }
-
-    rv <- do.call(paste("og_load_dict_",dict_entry[1,"loader"]),
-            args = list(entry=dict_entry)
-            )
-    return(rv)
-}
-
-import_dict <- function(data,name="",save=FALSE) {
-  # check for name conflicts
-  # normalize
-  # insert in environment
-  # TODO: save to data dir
-}
-
-clean_dicts<-function(cleancache=TRUE, cleandata=TRUE) {
-  if(cleandata) {
-    file.remove(dir(options[["opengender.datadir"]],pattern=paste0('.*',OG_DICT_EXT,OG_DICT_FILE_EXT) ))
-  }
-  if (cleancache) {
-    .pkgenv[["cacheobj"]]$reset()
-  }
-}
+# Internals: dictionary manipulation  --------------------------------------------------------
 
 og_normalize_dict<-function(x) {
+  # column naming
+  # column cleaning: given, country, year, pr_f, N
+  # aggregation by given
+  # fill in missing
   x
 }
 
@@ -140,5 +114,154 @@ og_gen_dictfilepath(name) {
 }
 
 og_load_dict_api <- function(name, entry) {
+
+}
+
+# Internals: dictionary-specific source extraction  --------------------------------------------------------
+
+
+# Public: Dictionary Manipulation --------------------------------------------------------
+
+
+#' Title
+#'
+#' @return
+#' @export
+#'
+#' @examples
+list_dict <- function() {
+  .pkgenv[["dicts"]][c("name","desc","type")]
+}
+
+#' Title
+#'
+#' @param name
+#' @param force
+#'
+#' @return
+#' @export
+#'
+#' @examples
+load_dict <- function(name="kantro", force=FALSE) {
+  dict_entry <-  .pkgenv[["dicts"]] %>% select('name'=name)
+  if (dim(dict_entry)[1]!=1) {
+    stop("Dictionary not found ", name)
+  }
+
+  if (!force && exists(og_gen_dictname(name), envir=.pkgenv) ) {
+    return(TRUE)
+  }
+
+  rv <- do.call(paste("og_load_dict_",dict_entry[1,"loader"]),
+                args = list(entry=dict_entry)
+  )
+  return(rv)
+}
+
+#' Title
+#'
+#' @param data
+#' @param name
+#' @param save
+#'
+#' @return
+#' @export
+#'
+#' @examples
+import_dict <- function(data,name="",save=FALSE) {
+  # check for name conflicts
+  # normalize
+  # insert in environment
+  # TODO: save to data dir
+}
+
+#' Title
+#'
+#' @param cleancache
+#' @param cleandata
+#'
+#' @return
+#' @export
+#'
+#' @examples
+clean_dicts<-function(cleancache=TRUE, cleandata=TRUE) {
+  if(cleandata) {
+    file.remove(dir(options[["opengender.datadir"]],pattern=paste0('.*',OG_DICT_EXT,OG_DICT_FILE_EXT) ))
+  }
+  if (cleancache) {
+    .pkgenv[["cacheobj"]]$reset()
+  }
+}
+
+# Public: Imputation --------------------------------------------------------
+
+#' Title
+#'
+#' @param given
+#' @param year
+#' @param country
+#' @param dicts
+#'
+#' @return
+#' @export
+#'
+#' @examples
+impute_gender<-function(given,year,country,dicts="kantro") {
+  purrr::walk(dicts,load_dict)
+  dicts.tbl <- og_combine_dicts(dicts)
+
+  # threshold
+  # normalize input
+  # unique matches
+  # fuzzy matches
+}
+
+# Public: Estimation --------------------------------------------------------
+
+#' Title
+#'
+#' @param x
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gender_mean <-function(x) {
+
+}
+
+#' Title
+#'
+#' @param x
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gender_se <-function(x) {
+
+}
+
+#' Title
+#'
+#' @param x
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gender_ci <- function(x) {
+
+}
+
+#' Title
+#'
+#' @param x
+#'
+#' @return
+#' @export
+#'
+#' @examples
+gender_sample <- function(x) {
 
 }

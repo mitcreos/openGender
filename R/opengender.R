@@ -2,6 +2,8 @@
 # Package: Constants --------------------------------------------------------
 OG_DICT_EXT <- "_dict"
 OG_DICT_FILE_EXT <- ".rds"
+OG_DICT_NOYEAR <- 10000
+OG_DICT_NOCOUNTRY <- "XX"
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent=emptyenv())
@@ -21,7 +23,7 @@ OG_DICT_FILE_EXT <- ".rds"
        opengender.cacheage = 3600*24*30,
        opengender.apikey = "",
        opengender.retries = 3,
-       opengender.delay = 10
+       opengender.backoff = 10
     )
     options(myOpt)
     mem_og_api_call_inner <- memoise::memoise(og_api_call_inner, cache=  .pkgenv[["cacheobj"]],
@@ -143,15 +145,39 @@ og_api_call <- function(given,country,year,apikey,host,service) {
   if (!res[["complete"]]) {
     memoise::drop_cache(mem_og_api_call_inner)(given,country,year,apikey,host,service)
   }
+  # complete response columns
+
+  if(!"given" %in% colnames(res)) {
+    res %<>% mutate(given=NA)
+  }
+  if(!"count" %in% colnames(res)) {
+    res %<>% mutate(count=NA)
+  }
+  if(!"country" %in% colnames(res)) {
+    if (missing(country)) {
+      country_res <- OG_DICT_NOCOUNTRY
+    } else {
+      country_res<- country
+    }
+    res %<>% mutate(country=country_res)
+  }
+  if(!"year" %in% colnames(res)) {
+    if (missing(year)) {
+      country_res <- OG_DICT_NOYEAR
+    } else {
+      year_res<- year
+    }
+    res %<>% mutate(year=year_res)
+  }
+
   res
 }
 
 
-
+# Not used directly -- wrapped in memoise at startup
 og_api_call_inner <- function(given,country,year,apikey,host,service) {
 
-
-  ql <- list(given=given)
+  ql <- list(given=given,service=service)
 
   if (!missing(apikey)) {
     ql[["apikey"]] <- apikey
@@ -169,15 +195,11 @@ og_api_call_inner <- function(given,country,year,apikey,host,service) {
     ql[["year"]] <- year
   }
 
-  uri <- do.call(paste0(og_api_call_,service),ql)
-
-
-  # memoise outer list
-  # retry
-  # parse response
+  res <- do.call(paste0(og_api_call_,service),ql)
+  res
 }
 
-og_url_build_genderize(host="api.genderize.io",given,country,year,apikey) {
+og_url_build_genderize(host="api.genderize.io",given,country,year,apikey,service) {
 
   uri <- list()
   uri[["scheme"]] <- "https"
@@ -195,6 +217,37 @@ og_url_build_genderize(host="api.genderize.io",given,country,year,apikey) {
   ql[["name"]] <- given
   uri[["query"]] <- ql
 
+  url <- httr2::url_buid(uri)
+
+  httr2::request(url) %>%
+    httr2::req_retry(max_tries = options()[["opengender.retries"]]) %>%
+    httr2::req_perform() -> resp
+
+  if (httr2::response_is_error(resp)) {
+    warning(service," call failed:", httr2::resp_status(resp),httr2::resp_status_desc(resp))
+    if (httr2::resp_status(resp) %in% c("401","402")) {
+      warning("check your API key")
+    }
+    if (httr2::resp_status(resp) %in% c("429")) {
+      warning("out of tokens -- retry tomorrow")
+    }
+    rv  <- tibble(complete=FALSE)
+  } else {
+    httr2::resp_body_json(resp) %>%
+      jsonlite::fromJSON() -> resp_body.ls
+
+    if (resp.body.ls[["gender"]]=="male") {
+      pr_f <- 1-resp.body.ls[["probability"]]
+    } else {
+      pr_f <- resp.body.ls[["probability"]]
+    }
+
+    rv  <- tibble(pr_f=pr_f,given_count=resp.body.ls[["count"]],complete=TRUE)
+
+  }
+
+
+  rv
 }
 
 

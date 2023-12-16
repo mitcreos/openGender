@@ -24,6 +24,8 @@ OG_DICT_FILE_EXT <- ".rds"
        opengender.delay = 10
     )
     options(myOpt)
+    mem_og_api_call_inner <- memoise::memoise(og_api_call_inner, cache=  .pkgenv[["cacheobj"]],
+                                              omit = c("apikey","host"))
 }
 
 og_init_dictlist<-function() {
@@ -73,7 +75,7 @@ og_find_datadir <- function() {
 
 # Internals: dictionary manipulation  --------------------------------------------------------
 
-og_normalize_dict<-function(x) {
+og_dict_normalize<-function(x) {
   # column naming
   # column cleaning: given, country, year, pr_f, N
   # aggregation by given
@@ -81,13 +83,27 @@ og_normalize_dict<-function(x) {
   x
 }
 
-og_load_dict_internal <- function(name, entry) {
+og_dict_load_internal <- function(name, entry) {
   data(name,package="opengender")
   assign(og_gen_dictname(name), og_normalize_dict(name),  envir=.pkgenv)
   invisible(TRUE)
 }
 
-og_load_dict_imported <- function(name, entry) {
+og_import_dict<-function(data,name,save,normalize,type) {
+  # normalize
+  if (normalize) {
+      data_norm <- og_normalize_dict(data)
+  }
+  # insert in environment
+  assign(og_gen_dictname(name), data_norm ,  envir=.pkgenv)
+
+  # TODO: save to data dir
+  if (save) {
+      og_save_dict
+  }
+}
+
+og_load_dict_added <- function(name, entry) {
   #TODO
   invisible(TRUE)
 }
@@ -100,7 +116,7 @@ og_load_dict_external <- function(name, entry) {
     )
   }
   tmpdict <- read_rds(file.path(load_dir,dict_file))
-  assign(og_gen_dictname(name), tmpdict ,  envir=.pkgenv)
+  og_import_dict(tmpdict,name,save=FALSE,normalize=TRUE,type="external")
 }
 
 og_gen_dictname(name="") [
@@ -117,7 +133,70 @@ og_load_dict_api <- function(name, entry) {
 
 }
 
+og_combine_dicts <-function(dicts) {
+
+}
+
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
+og_api_call <- function(given,country,year,apikey,host,service) {
+  res<-mem_og_api_call_inner(given,country,year,apikey,host,service)
+  if (!res[["complete"]]) {
+    memoise::drop_cache(mem_og_api_call_inner)(given,country,year,apikey,host,service)
+  }
+  res
+}
+
+
+
+og_api_call_inner <- function(given,country,year,apikey,host,service) {
+
+
+  ql <- list(given=given)
+
+  if (!missing(apikey)) {
+    ql[["apikey"]] <- apikey
+  } else  if ( !(is.null(options()[["opengender.apikey"]]))) {
+    ql[["apikey"]] <- options()[["opengender.apikey"]]
+  }
+
+  if (!missing(country)) {
+    ql[["country"]] <- country
+  }
+  if (!missing(host)) {
+    ql[["host"]] <- host
+  }
+  if (!missing(year)) {
+    ql[["year"]] <- year
+  }
+
+  uri <- do.call(paste0(og_api_call_,service),ql)
+
+
+  # memoise outer list
+  # retry
+  # parse response
+}
+
+og_url_build_genderize(host="api.genderize.io",given,country,year,apikey) {
+
+  uri <- list()
+  uri[["scheme"]] <- "https"
+  uri[["port"]] <- 80
+  uri[["hostname"]] <- host
+  uri[["path"]] <- ""
+
+  ql<- list()
+  if (!missing(apikey)) {
+    ql[["apikey"]] <- apikey
+  }
+  if (!missing(country)) {
+    ql[["country_id"]] <- country
+  }
+  ql[["name"]] <- given
+  uri[["query"]] <- ql
+
+}
+
 
 
 # Public: Dictionary Manipulation --------------------------------------------------------
@@ -168,11 +247,9 @@ load_dict <- function(name="kantro", force=FALSE) {
 #' @export
 #'
 #' @examples
-import_dict <- function(data,name="",save=FALSE) {
+add_local_dict <- function(data,name="",save=FALSE) {
   # check for name conflicts
-  # normalize
-  # insert in environment
-  # TODO: save to data dir
+ og_import_dict(data=data,name=name,save=save,normalize=TRUE,type="local")
 }
 
 #' Title

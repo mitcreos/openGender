@@ -1,0 +1,8 @@
+```{r}
+
+# From genderComputer python package
+
+# Slovenia male https://github.com/tue-mdse/genderComputer/raw/master/nameLists/SloveniaMaleUTF8.csv
+# Slovenia female https://github.com/tue-mdse/genderComputer/raw/master/nameLists/SloveniaFemaleUTF8.csv
+# country code "SI"
+```

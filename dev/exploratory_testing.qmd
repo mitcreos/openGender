@@ -1,6 +1,14 @@
 Genderize setup
 
 ```{r}
+tn<-c('   Raphaël^-#    Mcartan Fair    3Ждан 刘   ', "K8tlyn", 'StregA' )
 
+x.df <- tibble::tibble(given=tn)
+x.df %<>% mutate( given = stringi::stri_trans_general(given, id = "Latin-ASCII")) 
+x.df %<>% mutate( given = stringr::str_squish(given) )
+x.df %<>% mutate( given = stringr::str_to_lower(given) )
+x.df %<>% mutate( given = stringr::str_replace_all(given,'\\s','-') )
+x.df %<>% mutate( given = stringr::str_remove_all(given,'[\\digits\\W--\\-]'))
 
+x.df %>% pull(given)
 ```

@@ -12,3 +12,18 @@
 #' }
 #' @source <https://en.wikipedia.org/wiki/ISO_3166-2>
 "iso3166"
+
+
+#' Kantrowitz Corpus of Male and Female names from NLTK system
+#'
+#' Country codes and names
+#'
+#' @format ## `kantro`
+#' A data frame XXX observation and 2 columns
+#' \describe{
+#'   \item{pr_f}{proportion female}
+#'   \item{given}{given name}
+#'   ...
+#' }
+#' @source <https://www.nltk.org/book/ch06.html>
+"kantro"

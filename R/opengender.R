@@ -3,19 +3,18 @@
 # Package: Constants --------------------------------------------------------
 OG_DICT_EXT <- "_dict"
 OG_DICT_FILE_EXT <- ".rds"
-OG_DICT_NOYEAR <- 10000
-OG_DICT_NOCOUNTRY <- "XX"
+OG_DICT_NOYEAR <- 3000
+OG_DICT_NOCOUNTRY <- "00"
+
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
 
 # Internals: Startup --------------------------------------------------------
 .onLoad <- function(libname, pkgname) {
-  myDd <- og_find_workingdir()
+  myDd <- og_find_datadir()
   myCd <- og_find_cachedir()
 
-  .pkgenv[["dicts"]] <- og_init_dictlist()
-  .pkgenv[["cacheobj"]] <- og_init_cache()
   myOpt <- list(
     opengender.datadir = myDd,
     opengender.cachedir = myCd,
@@ -23,13 +22,19 @@ OG_DICT_NOCOUNTRY <- "XX"
     opengender.cacheage = 3600 * 24 * 30,
     opengender.apikey = "",
     opengender.retries = 3,
-    opengender.backoff = 10
+    opengender.backoff = 10,
+    opengender.dict.minsize = 25
   )
   options(myOpt)
+
+
+  .pkgenv[["dicts"]] <- og_init_dictlist()
+  .pkgenv[["cacheobj"]] <- og_init_cache()
+
   mem_og_api_call_inner <-
     memoise::memoise(og_api_call_inner,
                      cache =  .pkgenv[["cacheobj"]],
-                     omit = c("apikey", "host"))
+                     omit_args = c("apikey", "host"))
 }
 
 og_init_dictlist<-function() {
@@ -78,32 +83,68 @@ og_find_datadir <- function() {
 
 # Internals: dictionary manipulation  --------------------------------------------------------
 
-og_dict_normalize <- function(x) {
-  # column naming
-  # column cleaning: given, country, year, pr_f, N
-  # aggregation by given
+og_dict_normalize <- function(x, threshold) {
+  v_req <- c("given","pr_f")
+  v_opt <- c("country","year","N")
+
+  # column checks
+
+  if (!all(v_req %in% colnames(x))) {
+    stop("missing required variables -- check ",
+         paste(v_req[!(v_req %in% colnames(x))],","))
+  }
+
+  if (length(setdiff(colnames(x),c(vreq,v_opt)))) {
+    warning("dropping additional variables")
+  }
+
+  data_norm <- x
+
+  data_norm %<>% select(all_of(v_req),any_of(v_opt))
+
+  # fill missing cols
+  if (!"N" %in% colnames(data_norm) ) {
+    data_norm %>% mutate(N=NA)
+  }
+
+  if (!"year" %in% colnames(data_norm) ) {
+    data_norm %>% mutate(year=OG_DICT_NOYEAR)
+  }
+
+  if (!"country" %in% colnames(data_norm) ) {
+    data_norm %>% mutate(N=OG_DICT_NOCOUNTRY)
+  }
+
+  # clean columns: given, country, year, pr_f, N
+
+  # reaggregation by given
+
   # fill in missing
-  x
+  data_norm
 }
 
 og_dict_load_internal <- function(name, entry) {
   data(name, package = "opengender")
-  assign(og_gen_dictname(name), og_normalize_dict(name),  envir = .pkgenv)
+  assign(og_dict_genname(name), og_normalize_dict(name),  envir = .pkgenv)
   invisible(TRUE)
 }
 
-og_dict_import <- function(data, name, save, normalize, type) {
+og_dict_import <- function(data, name, save=TRUE, normalize=TRUE, type=c("imported","external","api","internal")) {
   # normalize
   if (normalize) {
     data_norm <- og_normalize_dict(data)
   }
   # insert in environment
-  assign(og_gen_dictname(name), data_norm ,  envir = .pkgenv)
+  assign(og_dict_genname(name), data_norm ,  envir = .pkgenv)
 
   # TODO: save to data dir
   if (save) {
-    og_save_dict
+    og_save_dict(data_norm,)
   }
+}
+
+og_dict_save<- function(name) {
+
 }
 
 og_dict_load_added <- function(name, entry) {
@@ -114,7 +155,7 @@ og_dict_load_added <- function(name, entry) {
 og_dict_load_external <- function(name, entry) {
   dict_file <- og_gen_dictfilepath(name)
   if (!file.exists(file.path(load_dir, dict_file))) {
-    do.call(og_gen_dictname(name),
+    do.call(og_dict_genname(name),
             args = list(entry = dict_entry))
   }
   tmpdict <- read_rds(file.path(load_dir, dict_file))
@@ -125,11 +166,13 @@ og_dict_load_external <- function(name, entry) {
                  type = "external")
 }
 
-og_dict_genname(name = "") [paste0(name, OG_DICT_EXT)]
+og_dict_genname<- function(name = "") {
+  paste0(name, OG_DICT_EXT)
+}
 
-og_dict_genfilepath(name) {
+og_dict_genfilepath<-function(name) {
   load_dir <- options("opengender.datadir")
-  rv <- paste0(og_normalize_dict(name), OG_DICT_FILE_EXT)
+  rv <- file.path(load_dir,paste0(og_dict_genname(name), OG_DICT_FILE_EXT))
   rv
 }
 
@@ -141,6 +184,15 @@ og_dict_combine <- function(dicts) {
 
 }
 
+og_dict_fetch_entry<-function(name) {
+  val_ <- name
+  dict_entry <-  .pkgenv[["dicts"]] %>% dplyr::filter(`name` == {{ val_ }} )
+  if (dim(dict_entry)[[1]]==0) {
+    dict_entry <- tibble::tibble()
+  }
+  return(dict_entry)
+}
+
 og_clean_given <- function(x) {
   x %>%
     stringr::str_squish() %>%
@@ -150,6 +202,30 @@ og_clean_given <- function(x) {
     stringr::str_remove_all('[\\W0-9--\\-]') %>%
     stringr::str_replace_all('-.', '-')
 }
+
+og_clean_year<-function(x,ymin=1000,ymax=2050) {
+  x %>%
+    trunc() %>%
+    pmax(ymin) %>%
+    pmin(ymax) %>%
+    tidyr::replace_na(OG_DICT_NOYEAR)
+}
+
+og_clean_country <- function(x) {
+  codes <- c(iso3166[["country_2d"]],OG_DICT_NOCOUNTRY)
+  rv <- as.character(x)
+  mismatch <- setdiff(unique(rv),codes)
+  if (length(mismatch)>0) {
+    warning("country codes not matched to iso3166:", paste(mismatch, sep=","))
+  }
+  rv %>%
+    dplyr::case_match(
+      mismatch ~ OG_DICT_NOCOUNTRY,
+      .default = x
+    ) %>%
+    tidyr::replace_na(OG_DICT_NOCOUNTRY)
+}
+
 
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
 og_api_call <- function(given, country, year, apikey, host, service) {
@@ -211,7 +287,7 @@ og_api_call_inner <-
     res
   }
 
-og_url_build_genderize(host = "api.genderize.io", given, country, year, apikey, service) {
+og_url_build_genderize<-function(host = "api.genderize.io", given, country, year, apikey, service) {
   uri <- list()
   uri[["scheme"]] <- "https"
   uri[["port"]] <- 80
@@ -293,17 +369,17 @@ list_dict <- function() {
 #'
 #' @examples
 load_dict <- function(name = "kantro", force = FALSE) {
-  dict_entry <-  .pkgenv[["dicts"]] %>% select('name' = name)
-  if (dim(dict_entry)[1] != 1) {
+  dict_entry <- og_dict_fetch_entry(name)
+  if (length(dict_entry)==0) {
     stop("Dictionary not found ", name)
   }
 
-  if (!force && exists(og_gen_dictname(name), envir = .pkgenv)) {
+  if (!force && exists(og_dict_genname(name), envir = .pkgenv)) {
     return(TRUE)
   }
 
-  rv <- do.call(paste("og_load_dict_", dict_entry[1, "loader"]),
-                args = list(entry = dict_entry))
+  rv <- do.call(paste0("og_dict_load_", dict_entry[[1, "loader"]]),
+                args = list(name=name, entry = dict_entry))
   return(rv)
 }
 
@@ -318,8 +394,13 @@ load_dict <- function(name = "kantro", force = FALSE) {
 #'
 #' @examples
 add_local_dict <- function(data, name = "", save = FALSE) {
-  # check for name conflicts
-  og_import_dict(
+  dict_entry <- og_dict_fetch_entry(name)
+  if (length(dict_entry)==0) {
+    stop("Dictionary not found ", name)
+  }
+
+
+    og_import_dict(
     data = data,
     name = name,
     save = save,

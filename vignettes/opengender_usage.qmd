@@ -17,6 +17,10 @@ list_dict()
 load_dict("kantro")
 ```
 
+```{r show-dictionary}
+show_dict("kantro")
+```
+
 ```{r test-data}
 # common baby names 1923-2022 
 #-- from https://www.ssa.gov/oact/babynames/decades/century.html
@@ -62,4 +66,11 @@ ssa_baby_names.df <- structure(list(Given = c("James", "Robert", "John", "Michae
 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)), row.names = c(NA, 
 -200L), class = "data.frame")
+```
+
+```{r}
+impute_gender(ssa_baby_names.df, 
+              dicts = "kantro",
+              cols=c(given = "given", year="", country="") )
+
 ```

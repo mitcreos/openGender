@@ -94,25 +94,25 @@ og_dict_normalize <- function(x, threshold) {
          paste(v_req[!(v_req %in% colnames(x))],","))
   }
 
-  if (length(setdiff(colnames(x),c(vreq,v_opt)))) {
+  if (length(setdiff(colnames(x),c(v_req,v_opt)))) {
     warning("dropping additional variables")
   }
 
   data_norm <- x
 
-  data_norm %<>% select(all_of(v_req),any_of(v_opt))
+  data_norm %<>% dplyr::select(all_of(v_req),any_of(v_opt))
 
   # fill missing cols
-  if (!"N" %in% colnames(data_norm) ) {
-    data_norm %>% mutate(N=NA)
+  if (!"n" %in% colnames(data_norm) ) {
+    data_norm %<>% mutate(n = NA_integer_)
   }
 
   if (!"year" %in% colnames(data_norm) ) {
-    data_norm %>% mutate(year=OG_DICT_NOYEAR)
+    data_norm %<>% mutate( year = OG_DICT_NOYEAR)
   }
 
   if (!"country" %in% colnames(data_norm) ) {
-    data_norm %>% mutate(N=OG_DICT_NOCOUNTRY)
+    data_norm %<>% mutate(country = OG_DICT_NOCOUNTRY)
   }
 
   # clean columns: given, country, year, pr_f, N
@@ -124,27 +124,24 @@ og_dict_normalize <- function(x, threshold) {
 }
 
 og_dict_load_internal <- function(name, entry) {
-  data(name, package = "opengender")
-  assign(og_dict_genname(name), og_normalize_dict(name),  envir = .pkgenv)
-  invisible(TRUE)
+  data(list=as.character(name), package = "opengender")
+  ds <- eval(as.symbol(name))
+  og_dict_import( ds , name, save_data = FALSE, normalize = TRUE)
+  return(invisible(TRUE))
 }
 
-og_dict_import <- function(data, name, save=TRUE, normalize=TRUE, type=c("imported","external","api","internal")) {
+og_dict_import <- function(data, name, save_data=TRUE, normalize=TRUE) {
   # normalize
   if (normalize) {
-    data_norm <- og_normalize_dict(data)
+    data_norm <- og_dict_normalize(data)
   }
   # insert in environment
   assign(og_dict_genname(name), data_norm ,  envir = .pkgenv)
 
   # TODO: save to data dir
-  if (save) {
-    og_save_dict(data_norm,)
+  if (save_data) {
+    saveRDS(data_norm, file = og_dict_genfilepath(name))
   }
-}
-
-og_dict_save<- function(name) {
-
 }
 
 og_dict_load_added <- function(name, entry) {
@@ -335,7 +332,7 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
     }
 
     rv  <-
-      tibble(pr_f = pr_f,
+      tibble::tibble(pr_f = pr_f,
              given_count = resp.body.ls[["count"]],
              complete = TRUE)
 
@@ -359,6 +356,23 @@ list_dict <- function() {
   .pkgenv[["dicts"]][c("name", "desc", "type")]
 }
 
+
+#' Title
+#'
+#' @return
+#' @export
+#'
+#' @examples
+show_dict <- function(name) {
+
+  dict_entry <- og_dict_fetch_entry(name)
+  if (length(dict_entry)==1) {
+      load_dict(name)
+  }
+  rv <- get(og_dict_genname(name), envir=.pkgenv)
+  rv
+}
+
 #' Title
 #'
 #' @param name
@@ -368,7 +382,7 @@ list_dict <- function() {
 #' @export
 #'
 #' @examples
-load_dict <- function(name = "kantro", force = FALSE) {
+load_dict <- function(name , force = FALSE) {
   dict_entry <- og_dict_fetch_entry(name)
   if (length(dict_entry)==0) {
     stop("Dictionary not found ", name)

@@ -39,6 +39,7 @@ OG_DICT_NON <- -1
                      omit_args = c("apikey", "host"))
 }
 
+#' @importFrom tibble tribble
 og_init_dictlist<-function() {
   tibble::tribble(
     ~name, ~desc, ~version, ~type, ~loader,  ~uri,
@@ -49,6 +50,7 @@ og_init_dictlist<-function() {
   #TODO: scan data directory for dictionaries
 }
 
+#' @importFrom cachem cache_disk
 og_init_cache <- function() {
   cacheobj <- cachem::cache_disk(dir = options()[["opengender.cachedir"]],
                                  max_size = options()[["opengender.cachesize"]],
@@ -57,9 +59,9 @@ og_init_cache <- function() {
   cacheobj
 }
 
+#' @importFrom rappdirs user_cache_dir
 og_find_cachedir <- function() {
-  tmpd <- rappdirs::user_cache_dir(appname = "opengender",
-                                   appauthor = appname)
+  tmpd <- rappdirs::user_cache_dir(appname = "opengender")
   if (!dir.exists(tmpd) && !dir.create(tmpd, recursive = TRUE)) {
     tmpd <- tmpdir(check = TRUE)
     tmpd <- file.path(tmpd / opengender)
@@ -70,9 +72,9 @@ og_find_cachedir <- function() {
   tmpd
 }
 
+#' @importFrom rappdirs user_cache_dir
 og_find_datadir <- function() {
-  tmpd <- rappdirs::user_cache_dir(appname = "opengender",
-                                   appauthor = appname)
+  tmpd <- rappdirs::user_cache_dir(appname = "opengender")
   if (!dir.exists(tmpd) && !dir.create(tmpd, recursive = TRUE)) {
     tmpd <- tmpdir(check = TRUE)
     tmpd <- file.path(tmpd / opengender)
@@ -85,6 +87,7 @@ og_find_datadir <- function() {
 
 # Internals: dictionary manipulation  --------------------------------------------------------
 
+#' @importFrom dplyr select
 og_dict_normalize <- function(x, threshold) {
   v_req <- c("given","gender")
   v_opt <- c("country","year","n")
@@ -211,6 +214,7 @@ og_dict_combine <- function(dicts,
     summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n)
 }
 
+#' @importFrom dplyr filter
 og_dict_fetch_entry<-function(name) {
   val_ <- name
   dict_entry <-  .pkgenv[["dicts"]] %>% dplyr::filter(`name` == {{ val_ }} )
@@ -219,6 +223,9 @@ og_dict_fetch_entry<-function(name) {
   }
   return(dict_entry)
 }
+
+#' @import stringr
+#' @importFrom stringi stri_trans_general
 
 og_clean_given <- function(x) {
   x %>%
@@ -241,6 +248,8 @@ og_clean_gender <- function(x) {
     )
 }
 
+
+#' @importFrom tidyr replace_na
 og_clean_year<-function(x,ymin=1000,ymax=2050) {
   x %>%
     as.integer() %>%
@@ -249,6 +258,8 @@ og_clean_year<-function(x,ymin=1000,ymax=2050) {
     tidyr::replace_na(OG_DICT_NOYEAR)
 }
 
+#' @importFrom tidyr replace_na
+#' @importFrom dplyr case_match
 og_clean_country <- function(x) {
   codes <- c(iso3166[["country_2d"]],OG_DICT_NOCOUNTRY)
   rv <- as.character(x)
@@ -266,6 +277,9 @@ og_clean_country <- function(x) {
 
 
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
+#' @importFrom dplyr mutate
+#' @importFrom memoise drop_cache
+
 og_api_call <- function(given, country, year, apikey, host, service) {
   res <- mem_og_api_call_inner(given, country, year, apikey, host, service)
   if (!res[["complete"]]) {
@@ -274,10 +288,10 @@ og_api_call <- function(given, country, year, apikey, host, service) {
   # complete response columns
 
   if (!"given" %in% colnames(res)) {
-    res %<>% mutate(given = NA)
+    res %<>%  dplyr::mutate(given = NA)
   }
   if (!"count" %in% colnames(res)) {
-    res %<>% mutate(count = NA)
+    res %<>% dplyr::mutate(count = NA)
   }
   if (!"country" %in% colnames(res)) {
     if (missing(country)) {
@@ -293,7 +307,7 @@ og_api_call <- function(given, country, year, apikey, host, service) {
     } else {
       year_res <- year
     }
-    res %<>% mutate(year = year_res)
+    res %<>% dplyr::mutate(year = year_res)
   }
 
   res
@@ -325,6 +339,18 @@ og_api_call_inner <-
     res
   }
 
+#' @importFrom httr2 url_build
+#' @importFrom httr2 request
+#' @importFrom httr2 req_retry
+#' @importFrom httr2 req_perform
+#' @importFrom httr2 response_is_error
+#' @importFrom httr2 resp_status
+#' @importFrom httr2 resp_status_diesc
+#' @importFrom tibble tibble
+#' @importFrom httr2 resp_body_json
+#' @importFrom jsonlite fromJSON
+
+
 og_url_build_genderize<-function(host = "api.genderize.io", given, country, year, apikey, service) {
   uri <- list()
   uri[["scheme"]] <- "https"
@@ -342,7 +368,7 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
   ql[["name"]] <- given
   uri[["query"]] <- ql
 
-  url <- httr2::url_buid(uri)
+  url <- httr2::url_build(uri)
 
   httr2::request(url) %>%
     httr2::req_retry(max_tries = options()[["opengender.retries"]]) %>%
@@ -361,7 +387,7 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
     if (httr2::resp_status(resp) %in% c("429")) {
       warning("out of tokens -- retry tomorrow")
     }
-    rv  <- tibble(complete = FALSE)
+    rv  <- tibble::tibble(complete = FALSE)
   } else {
     httr2::resp_body_json(resp) %>%
       jsonlite::fromJSON() -> resp_body.ls
@@ -496,6 +522,7 @@ clean_dicts <- function(cleancache = TRUE,
 #' @export
 #'
 #' @examples
+
 impute_gender <- function(x, cols = c(given="given", year="", country=""),
                           dicts = "kantro",
                           dict_api = "" ,
@@ -506,7 +533,6 @@ impute_gender <- function(x, cols = c(given="given", year="", country=""),
 
 
   dicts.tbl <- og_combine_dicts(unique(dicts))
-
 
   # normalize input
   # distinct set

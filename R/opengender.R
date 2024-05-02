@@ -5,6 +5,8 @@ OG_DICT_EXT <- "_dict"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_NOCOUNTRY <- "00"
+OG_DICT_NON <- -1
+
 
 
 # Package: Variables --------------------------------------------------------
@@ -23,7 +25,7 @@ OG_DICT_NOCOUNTRY <- "00"
     opengender.apikey = "",
     opengender.retries = 3,
     opengender.backoff = 10,
-    opengender.dict.minsize = 25
+    opengender.dict.minsize = 26
   )
   options(myOpt)
 
@@ -84,8 +86,8 @@ og_find_datadir <- function() {
 # Internals: dictionary manipulation  --------------------------------------------------------
 
 og_dict_normalize <- function(x, threshold) {
-  v_req <- c("given","pr_f")
-  v_opt <- c("country","year","N")
+  v_req <- c("given","gender")
+  v_opt <- c("country","year","n")
 
   # column checks
 
@@ -103,23 +105,43 @@ og_dict_normalize <- function(x, threshold) {
   data_norm %<>% dplyr::select(all_of(v_req),any_of(v_opt))
 
   # fill missing cols
-  if (!"n" %in% colnames(data_norm) ) {
-    data_norm %<>% mutate(n = NA_integer_)
+  if (!"n" %in% colnames(x) ) {
+    # temporarily set to 1 for reaggregation -- set to special value at end
+    data_norm %<>% mutate(n = 1 )
   }
 
-  if (!"year" %in% colnames(data_norm) ) {
+  if (!"year" %in% colnames(x) ) {
     data_norm %<>% mutate( year = OG_DICT_NOYEAR)
   }
 
-  if (!"country" %in% colnames(data_norm) ) {
+  if (!"country" %in% colnames(x) ) {
     data_norm %<>% mutate(country = OG_DICT_NOCOUNTRY)
   }
 
   # clean columns: given, country, year, pr_f, N
 
+  data_norm %<>% mutate(given=og_clean_given(given))
+  data_norm %<>% mutate(year=og_clean_year(year))
+  data_norm %<>% mutate(country=og_clean_country(country))
+  data_norm %<>% mutate(gender=og_clean_gender(gender))
+
   # reaggregation by given
 
-  # fill in missing
+
+  data_norm %<>% group_by(given,year,country) %>% mutate(ng = sum(n)) %>%
+    group_by(given,gender, year,country) %>% mutate(pr = n/ng) %>%
+    ungroup() %>%
+    select(given,gender,year,country,pr,n) %>%
+    distinct() %>%
+    pivot_wider(names_from="gender", names_prefix="pr_", values_from="pr", values_fill=0) %>%
+    arrange(given) %>%
+    select(given,year,country,pr_F,pr_M,n)
+
+  # fill in missing N
+  if (!"n" %in% colnames(x) ) {
+    data_norm %<>% mutate(n = OG_DICT_NON )
+  }
+
   data_norm
 }
 
@@ -177,8 +199,16 @@ og_dict_load_api <- function(name, entry) {
 
 }
 
-og_dict_combine <- function(dicts) {
+og_dict_combine <- function(dicts,
+              missing_n_weight = options("opengender.dict.minsize")[[1]]
+              ) {
+  dc.df <- purrr::map(dicts, show_dict) %>% list_rbind()
+  dc.df %<>% mutate(n=case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
 
+  dc.df %>%
+    mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
+    group_by(given,year,country) %>%
+    summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n)
 }
 
 og_dict_fetch_entry<-function(name) {
@@ -200,9 +230,20 @@ og_clean_given <- function(x) {
     stringr::str_replace_all('-.', '-')
 }
 
+og_clean_gender <- function(x) {
+  x %>%
+    stringr::str_squish() %>%
+    stringr::str_to_lower() %>%
+    case_match(
+      c("m","man","men","male") ~ "M",
+      c("f","woman","women","female") ~ "F",
+      .default = "O"
+    )
+}
+
 og_clean_year<-function(x,ymin=1000,ymax=2050) {
   x %>%
-    trunc() %>%
+    as.integer() %>%
     pmax(ymin) %>%
     pmin(ymax) %>%
     tidyr::replace_na(OG_DICT_NOYEAR)
@@ -366,7 +407,7 @@ list_dict <- function() {
 show_dict <- function(name) {
 
   dict_entry <- og_dict_fetch_entry(name)
-  if (length(dict_entry)==1) {
+  if (length(dict_entry)>0) {
       load_dict(name)
   }
   rv <- get(og_dict_genname(name), envir=.pkgenv)
@@ -414,7 +455,7 @@ add_local_dict <- function(data, name = "", save = FALSE) {
   }
 
 
-    og_import_dict(
+  og_import_dict(
     data = data,
     name = name,
     save = save,
@@ -455,14 +496,25 @@ clean_dicts <- function(cleancache = TRUE,
 #' @export
 #'
 #' @examples
-impute_gender <- function(given, year, country, dicts = "kantro") {
-  purrr::walk(dicts, load_dict)
-  dicts.tbl <- og_combine_dicts(dicts)
+impute_gender <- function(x, cols = c(given="given", year="", country=""),
+                          dicts = "kantro",
+                          dict_api = "" ,
+                          save_api = TRUE,
+                          fuzzy_match = TRUE
+                          year_adjust = TRUE) {
 
-  # threshold
+
+
+  dicts.tbl <- og_combine_dicts(unique(dicts))
+
+
   # normalize input
-  # unique matches
+  # distinct set
+  # complete match
+  # incomplete match to
   # fuzzy matches
+  # API fallback
+
 }
 
 # Public: Estimation --------------------------------------------------------

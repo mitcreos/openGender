@@ -7,7 +7,7 @@
 gender_sample(x)
 }
 \arguments{
-\item{x}{}
+\item{n}{}
 }
 \description{
 Title

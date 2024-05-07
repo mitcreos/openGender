@@ -10,7 +10,6 @@
 #' @import rlang
 #' @importFrom glue glue
 #' @importFrom lifecycle deprecated
-#' @importFrom stringr
-#' @importFrom tibble
+#' @import tibble
 ## usethis namespace: end
 NULL

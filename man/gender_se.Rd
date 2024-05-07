@@ -4,10 +4,15 @@
 \alias{gender_se}
 \title{Title}
 \usage{
-gender_se(x)
+gender_se(x, simplify = TRUE)
 }
 \arguments{
-\item{x}{}
+\item{x}{data frame with instrumented by impute}
+
+\item{simplify}{}
+}
+\value{
+mean value of each
 }
 \description{
 Title

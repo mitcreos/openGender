@@ -4,10 +4,10 @@
 \alias{gender_mean}
 \title{Title}
 \usage{
-gender_mean(x)
+gender_mean(x, simplify = TRUE)
 }
 \arguments{
-\item{x}{}
+\item{simplify}{}
 }
 \description{
 Title

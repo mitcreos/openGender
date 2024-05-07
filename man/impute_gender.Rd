@@ -4,10 +4,18 @@
 \alias{impute_gender}
 \title{Title}
 \usage{
-impute_gender(given, year, country, dicts = "kantro")
+impute_gender(
+  x,
+  col_map = c(given = "given", year = "", country = ""),
+  dicts = c("kantro"),
+  dict_api = "",
+  save_api = TRUE,
+  fuzzy_match = TRUE,
+  year_adjust = TRUE
+)
 }
 \arguments{
-\item{dicts}{}
+\item{year_adjust}{}
 }
 \description{
 Title

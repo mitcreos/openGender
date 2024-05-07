@@ -1,3 +1,6 @@
+#' @importFrom magrittr "%<>%"
+#' @importFrom magrittr "%>%"
+#' @import rlang
 
 
 # Package: Constants --------------------------------------------------------
@@ -88,6 +91,16 @@ og_find_datadir <- function() {
 # Internals: dictionary manipulation  --------------------------------------------------------
 
 #' @importFrom dplyr select
+#' @importFrom dplyr distinct
+#' @importFrom dplyr arrange
+#' @importFrom dplyr mutate
+#' @importFrom dplyr arrange
+#' @importFrom dplyr ungroup
+#' @importFrom dplyr group_by
+#' @importFrom dplyr filter
+#' @importFrom tibble tibble
+#' @importFrom tidyr pivot_wider
+
 og_dict_normalize <- function(x, threshold) {
   v_req <- c("given","gender")
   v_opt <- c("country","year","n")
@@ -110,39 +123,47 @@ og_dict_normalize <- function(x, threshold) {
   # fill missing cols
   if (!"n" %in% colnames(x) ) {
     # temporarily set to 1 for reaggregation -- set to special value at end
-    data_norm %<>% mutate(n = 1 )
+    data_norm %<>% dplyr::mutate(n = 1 )
   }
 
   if (!"year" %in% colnames(x) ) {
-    data_norm %<>% mutate( year = OG_DICT_NOYEAR)
+    data_norm %<>% dplyr::mutate( year = OG_DICT_NOYEAR)
   }
 
   if (!"country" %in% colnames(x) ) {
-    data_norm %<>% mutate(country = OG_DICT_NOCOUNTRY)
+    data_norm %<>% dplyr::mutate(country = OG_DICT_NOCOUNTRY)
   }
 
   # clean columns: given, country, year, pr_f, N
 
-  data_norm %<>% mutate(given=og_clean_given(given))
-  data_norm %<>% mutate(year=og_clean_year(year))
-  data_norm %<>% mutate(country=og_clean_country(country))
-  data_norm %<>% mutate(gender=og_clean_gender(gender))
+  data_norm %<>% dplyr::mutate(given=og_clean_given(given))
+  data_norm %<>%
+    dplyr::bind_rows(
+      tibble::tibble(given=c("[DUMMY]"), gender=c("M","F","O"))
+      ) # ensure gender types are populated
+  data_norm %<>% dplyr::mutate(year=og_clean_year(year))
+  data_norm %<>% dplyr::mutate(country=og_clean_country(country))
+  data_norm %<>% dplyr::mutate(gender=og_clean_gender(gender))
 
   # reaggregation by given
 
-
-  data_norm %<>% group_by(given,year,country) %>% mutate(ng = sum(n)) %>%
-    group_by(given,gender, year,country) %>% mutate(pr = n/ng) %>%
-    ungroup() %>%
-    select(given,gender,year,country,pr,n) %>%
-    distinct() %>%
-    pivot_wider(names_from="gender", names_prefix="pr_", values_from="pr", values_fill=0) %>%
-    arrange(given) %>%
-    select(given,year,country,pr_F,pr_M,n)
+  data_norm %<>%
+    dplyr::group_by(given,year,country) %>%
+    dplyr::mutate(ng = sum(n)) %>%
+    dplyr::group_by(given,gender, year,country) %>%
+    dplyr::mutate(pr = n/ng) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(given,gender,year,country,pr,n) %>%
+    dplyr::distinct() %>%
+    tidyr::pivot_wider(names_from="gender", names_prefix="pr_", values_from="pr", values_fill=0) %>%
+    dplyr::arrange(given) %>%
+    dplyr::filter(given!="[DUMMY]") %>%
+    dplyr::select(given,year,country,pr_F,pr_M,n)
 
   # fill in missing N
   if (!"n" %in% colnames(x) ) {
-    data_norm %<>% mutate(n = OG_DICT_NON )
+    data_norm %<>%
+      dplyr::mutate(n = OG_DICT_NON )
   }
 
   data_norm
@@ -202,16 +223,24 @@ og_dict_load_api <- function(name, entry) {
 
 }
 
+#' @importFrom dplyr mutate
+#' @importFrom dplyr group_by
+#' @importFrom dplyr summarise
+#' @importFrom dplyr case_match
+#' @importFrom purrr map
+#' @importFrom purrr list_rbind
+
+
 og_dict_combine <- function(dicts,
               missing_n_weight = options("opengender.dict.minsize")[[1]]
               ) {
   dc.df <- purrr::map(dicts, show_dict) %>% list_rbind()
-  dc.df %<>% mutate(n=case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
+  dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
 
   dc.df %>%
-    mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
-    group_by(given,year,country) %>%
-    summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n)
+    dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
+    dplyr::group_by(given,year,country) %>%
+    dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n)
 }
 
 #' @importFrom dplyr filter
@@ -237,6 +266,7 @@ og_clean_given <- function(x) {
     stringr::str_replace_all('-.', '-')
 }
 
+#' @import stringr
 og_clean_gender <- function(x) {
   x %>%
     stringr::str_squish() %>%
@@ -480,7 +510,6 @@ add_local_dict <- function(data, name = "", save = FALSE) {
     stop("Dictionary not found ", name)
   }
 
-
   og_import_dict(
     data = data,
     name = name,
@@ -513,34 +542,105 @@ clean_dicts <- function(cleancache = TRUE,
 
 #' Title
 #'
-#' @param given
-#' @param year
-#' @param country
+#' @param cols
 #' @param dicts
+#' @param dict_api
+#' @param save_api
+#' @param fuzzy_match
+#' @param year_adjust
 #'
 #' @return
 #' @export
+#' @importFrom dplyr select
+#' @importFrom dplyr rename
+#' @importFrom dplyr mutate
+#' @importFrom dplyr left_join
+#' @importFrom tidyr nest
+
 #'
 #' @examples
 
-impute_gender <- function(x, cols = c(given="given", year="", country=""),
-                          dicts = "kantro",
+impute_gender <- function(x, col_map = c(given="given", year="", country=""),
+                          dicts = c("kantro"),
                           dict_api = "" ,
                           save_api = TRUE,
-                          fuzzy_match = TRUE
+                          fuzzy_match = TRUE,
                           year_adjust = TRUE) {
 
+  all_ind <- c("given","year","country")
 
+  if (!"given" %in% names(cmp)) {
+    stop("must supply a column of given names")
+  }
 
-  dicts.tbl <- og_combine_dicts(unique(dicts))
+  if (!all(names(cl) %in% all_ind)) {
+    warning("additional columns in col_map",
+            paste(names(cl)[!name(cl) %in% all_ind])
+    )
+  }
 
-  # normalize input
-  # distinct set
+  dicts.tbl <- og_dict_combine(unique(dicts))
+
+  # create reduced normalized input table
+  cmp <- col_map[col_map!=""]
+  cmp <- cmp[names(cmp) %in% all_ind]
+  cmp_r <- setNames(names(cmp),cmp)
+  cmp_nm <- names(cmp)
+  cmp_nm_r <- names(cmp_r)
+  cmp_g <- cmp[["given"]]
+
+  x_norm.df <- x %>%
+    dplyr::select( {{cmp}} )
+
+  x_nms_match.df <- x_norm.df %>%
+    dplyr::select(given_original=given) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(
+      og_given_clean=og_clean_given(given_original)
+                           )
+  x_norm.df %<>% mutate(gender="O") # temporary dummy for normalization
+
+  x_norm.df %<>%
+    og_dict_normalize() %>%
+    dplyr::select(all_ind)
+
+  ### match to dict
+
   # complete match
+
+  match_exact.df <-
+    x_norm.df %>%
+    dplyr::left_join(dicts.tbl,
+                     by = all_ind
+                     ) %>%
+    filter(!is_missing(n))
+
   # incomplete match to
+  # year interpolation
   # fuzzy matches
   # API fallback
 
+  # combine results and rejoin to input
+
+  match_all.df <- dplyr::bind_rows(match_exact.df)
+
+  match_all.df %<>%
+    dplyr::mutate(og_pr_F=pr_F) %>%
+    tidyr::nest(og_details= c(pr_F,pr_M,n)) %>%
+    dplyr::select( {{cmp_nm}}, og_details, og_pr_F) %>%
+    rename(og_given_clean = given)
+
+  byspec <- "given_original"; names(byspec) <- cmp_g
+  rejoined.df <-
+    dplyr::left_join(x, x_nms_match.df,
+                     by= byspec)
+
+  byspec <- cmp_r
+  byspec[[which(byspec=="given")]] <- "og_given_clean"
+  rejoined.df %<>% dplyr::left_join(match_all.df,
+                           by = byspec)
+
+  rejoined.df
 }
 
 # Public: Estimation --------------------------------------------------------
@@ -548,42 +648,46 @@ impute_gender <- function(x, cols = c(given="given", year="", country=""),
 #' Title
 #'
 #' @param x
+#' @param simplify
 #'
 #' @return
 #' @export
 #'
 #' @examples
-gender_mean <- function(x) {
+gender_mean <- function(x, simplify =TRUE) {
+
+}
+
+#' Title
+#'
+#' @param x data frame with instrumented by impute
+#' @param simplify
+#'
+#' @return mean value of each
+#' @export
+#'
+#' @examples
+gender_se <- function(x,  simplify =TRUE) {
 
 }
 
 #' Title
 #'
 #' @param x
+#' @param simplify
 #'
 #' @return
 #' @export
 #'
 #' @examples
-gender_se <- function(x) {
+gender_ci <- function(x, simplify =TRUE) {
 
 }
 
 #' Title
 #'
 #' @param x
-#'
-#' @return
-#' @export
-#'
-#' @examples
-gender_ci <- function(x) {
-
-}
-
-#' Title
-#'
-#' @param x
+#' @param n
 #'
 #' @return
 #' @export

@@ -4,10 +4,10 @@
 \alias{gender_ci}
 \title{Title}
 \usage{
-gender_ci(x)
+gender_ci(x, simplify = TRUE)
 }
 \arguments{
-\item{x}{}
+\item{simplify}{}
 }
 \description{
 Title

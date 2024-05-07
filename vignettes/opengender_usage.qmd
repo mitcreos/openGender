@@ -13,10 +13,6 @@ library(opengender)
 list_dict()
 ```
 
-```{r demonstrate-kantro}
-load_dict("kantro")
-```
-
 ```{r show-dictionary}
 show_dict("kantro")
 ```
@@ -24,7 +20,7 @@ show_dict("kantro")
 ```{r test-data}
 # common baby names 1923-2022 
 #-- from https://www.ssa.gov/oact/babynames/decades/century.html
-ssa_baby_names.df <- structure(list(Given = c("James", "Robert", "John", "Michael", 
+ssa_baby_names.df <- structure(list( firstname = c("James", "Robert", "John", "Michael", 
 "David", "William", "Richard", "Joseph", "Thomas", "Christopher", 
 "Charles", "Daniel", "Matthew", "Anthony", "Mark", "Donald", 
 "Steven", "Andrew", "Paul", "Joshua", "Kenneth", "Kevin", "Brian", 
@@ -66,11 +62,19 @@ ssa_baby_names.df <- structure(list(Given = c("James", "Robert", "John", "Michae
 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 
 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)), row.names = c(NA, 
 -200L), class = "data.frame")
+
+
 ```
 
 ```{r}
-impute_gender(ssa_baby_names.df, 
-              dicts = "kantro",
-              cols=c(given = "given", year="", country="") )
 
+names_sample.df <- ssa_baby_names.df %>%
+  dplyr::slice_sample(n=1000, replace=TRUE)
+
+names_sample.df %<>% 
+  dplyr::bind_rows(tibble::tibble(firstname="Wozzleface"))
+  
+impute_gender(names_sample.df, 
+              dicts = "kantro",
+              col_map=c(given = "firstname", year="", country="") )
 ```

@@ -635,10 +635,9 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
     dplyr::left_join(x, x_nms_match.df,
                      by= byspec)
 
-  byspec <- cmp_r
-  byspec[[which(byspec=="given")]] <- "og_given_clean"
   rejoined.df %<>% dplyr::left_join(match_all.df,
-                           by = byspec)
+                           by = "og_given_clean") %>%
+    dplyr::select(!og_given_clean)
 
   rejoined.df
 }

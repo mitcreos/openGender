@@ -218,7 +218,7 @@ og_dict_genfilepath<-function(name) {
 }
 
 og_dict_load_api <- function(name, entry) {
-
+  # - if save file, load it into environment, otherwise generate empty tibble
 }
 
 #' @importFrom dplyr mutate
@@ -580,7 +580,6 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
     )
   }
 
-  # TODO: separate dict_api
   dicts.tbl <- og_dict_combine(unique(dicts))
 
   # create reduced normalized input table
@@ -663,18 +662,24 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
   match_cum.df <- match_cur.df
 
-  # incomplete match to country
+  # TODO: incomplete match to country
 
   if(FALSE) {
   unmatched.df <-
     dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
 
-  match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+    # join to unmatched
+   match_cur.df <- unmatched.df %>%
+     dplyr::inner_join(dicts.tbl,
+                       by = all_ind
+     )
+
+   match_cum.df %<>% dplyr::bind_rows(match_cur.df)
   }
 
-  # year interpolation
+  # TODO: year interpolation
 
-  # API fallback
+  # TODO: API retrieval of remainder
 
 
   ### combine results and rejoin to input

@@ -77,5 +77,6 @@ names_sample.df %<>%
   
 add_gender_predictions(names_sample.df, 
               dicts = "kantro",
-              col_map=c(given = "firstname", year="", country="") )
+              col_map=c(given = "firstname", year="", country="") ) -> res
+res
 ```

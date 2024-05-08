@@ -1,22 +1,23 @@
-- Misc
-  - check against ISO codes package
 
-- Data files:
-   - built-in for testing
+
+
+- Misc
+
+- Data management:
+   - [DONE] built-in for testing
    - download framework
-   - cached API resuts
-   - appdirs selection
+   - cached API results
+   - [DONE] appdirs selection
 
 - Dependencies manage
-  - magrittr pipe
-  - dplyr
+  - [DONE] magrittr pipe
+  - [DONE] roxygen
   - purrr insistent, etc
 
-  Test framework
+Test framework
+- corner cases
+- unit tests
 
-Corrections
- - year trend
- - country
 
  Uncertainty
  - baseline sample size correction
@@ -25,21 +26,25 @@ Corrections
 Robustness
 - API backoff/retry
 - API key
-- Missing country
-- Missing probabiility
-- Missing year
-- Name cleaning
-- Fuzzy matching
+- [DONE] Missing country
+- [DONE] Missing probabiility
+- [DONE] Missing year
+- [DONE] Name cleaning
+- [DONE] Fuzzy matching
+- Country aggregation
+- Year interpolation
 
 Data
-- Wikidata
-- Kantrowicz
+- [DONE] Kantrowicz
 - IPUMS
 - SSA
 - NAPP
 - GenderAPI
 - GenderIze
 - World Names
+- check against ISO codes package
+- Wikidata
+
 
 Performance
 - memoise caching API

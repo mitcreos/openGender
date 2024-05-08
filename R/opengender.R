@@ -25,6 +25,7 @@ OG_DICT_NON <- -1
     opengender.apikey = "",
     opengender.retries = 3,
     opengender.backoff = 10,
+    opengender.fuzzymax = .05,
     opengender.dict.minsize = 26
   )
   options(myOpt)
@@ -536,7 +537,7 @@ clean_dicts <- function(cleancache = TRUE,
 
 # Public: Imputation --------------------------------------------------------
 
-#' Title
+#' add_gender_predictions
 #'
 #' @param col_map matching columns to impute
 #' @param dicts list of dictionaries
@@ -552,14 +553,14 @@ clean_dicts <- function(cleancache = TRUE,
 #' @importFrom dplyr left_join
 #' @importFrom dplyr anti_join
 #' @importFrom dplyr inner_join
+#' @importFrom dplyr coalesce
 #' @importFrom fuzzyjoin stringdist_join
 #' @importFrom tidyr nest
-#' @importFrom tidyr replace_na
 
 #'
 #' @examples [TODO]
 
-impute_gender <- function(x, col_map = c(given="given", year="", country=""),
+add_gender_predictions <- function(x, col_map = c(given="given", year="", country=""),
                           dicts = c("kantro"),
                           save_api_results = TRUE,
                           fuzzy_match = TRUE,
@@ -621,31 +622,32 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
       dicts.tbl %>%
         dplyr::select(given) ,
       by = c(given_clean="given") ,
-      distance_col = "og_fuzzy_dist",
+      distance_col = "fuzzy_dist",
       method = "cosine",
-      max_dist = .05
+      max_dist = options()[["opengender.fuzzymax"]]
     )  %>%
     dplyr::rename(given_fuzzy=given) %>%
     dplyr::group_by(given_clean) %>%
-    dplyr::slice_min(order_by = og_fuzzy_dist, n = 1) %>%
+    dplyr::slice_min(order_by = fuzzy_dist, n = 1) %>%
     dplyr::slice_head(n = 1)  %>%
     dplyr::ungroup()
 
     x_norm.df %<>%
       dplyr::left_join(fuzzy_match.df ,
                        by=c(given="given_clean")) %>%
-      dplyr::mutate(given_match=tidyr::replace_na(given_match,given_clean)) %>%
-      dplyr::select(given=given_match,year,country)
+      dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,given)) %>%
+      dplyr::select(given=given_fuzzy,year,country,fuzzy_dist)
 
     x_nms_match.df %<>%
-      dplyr::left_join(fuzzy_match.df, by(given_input="given_clean")) %>%
-      dplyr::mutate(given_match.y=tidyr::replace_na(given_match.y,given_match.x)) %>%
-      select(given_input, given_match="given_match.y")
+      dplyr::left_join(fuzzy_match.df,
+                       by=c(given_match="given_clean")) %>%
+      dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,given_match)) %>%
+      dplyr::select(given_input, given_match=given_fuzzy,fuzzy_dist)
 
   } else {
     x_norm.df %<>%
       mutate(given=given_clean,
-             og_fuzzy_dist=NA_real_)
+             fuzzy_dist=NA_real_)
   }
 
 
@@ -661,31 +663,34 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
 
   match_cum.df <- match_cur.df
 
+  # incomplete match to country
+
+  if(FALSE) {
   unmatched.df <-
     dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
 
   match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+  }
 
-  # incomplete match to country
   # year interpolation
+
   # API fallback
 
 
   ### combine results and rejoin to input
 
-  match_all.df %<>%
+  match_cum.df %<>%
     dplyr::mutate(og_pr_F=pr_F) %>%
-    tidyr::nest(og_details= c(pr_F,pr_M,n)) %>%
-    dplyr::select( {{cmp_nm}}, og_details, og_pr_F) %>%
-    rename(og_given_clean = given)
+    tidyr::nest(og_details= c(pr_F,pr_M,n,fuzzy_dist)) %>%
+    dplyr::select( {{cmp_nm}}, og_details, og_pr_F)
 
   byspec <- "given_input"; names(byspec) <- cmp_g
   rejoined.df <-
     dplyr::left_join(x, x_nms_match.df,
                      by= byspec)
 
-  rejoined.df %<>% dplyr::left_join(match_all.df,
-                           by = "given_match") %>%
+  rejoined.df %<>% dplyr::left_join(match_cum.df,
+                           by = c(given_match="given"))  %>%
   dplyr::select(!given_match)
 
   rejoined.df
@@ -702,7 +707,7 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
 #' @export
 #'
 #' @examples [TODO]
-gender_mean <- function(x, simplify =TRUE) {
+gender_mean <- function(x, simplify = TRUE) {
 
 }
 
@@ -715,7 +720,7 @@ gender_mean <- function(x, simplify =TRUE) {
 #' @export
 #'
 #' @examples [TODO]
-gender_se <- function(x,  simplify =TRUE) {
+gender_se <- function(x,  simplify = TRUE) {
 
 }
 

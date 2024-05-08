@@ -67,12 +67,13 @@ ssa_baby_names.df <- structure(list( firstname = c("James", "Robert", "John", "M
 ```
 
 ```{r}
+library(magrittr)
 
 names_sample.df <- ssa_baby_names.df %>%
   dplyr::slice_sample(n=1000, replace=TRUE)
 
 names_sample.df %<>% 
-  dplyr::bind_rows(tibble::tibble(firstname="Wozzleface"))
+  dplyr::bind_rows(tibble::tibble(firstname=c("Wozzleface","Hanah")))
   
 impute_gender(names_sample.df, 
               dicts = "kantro",

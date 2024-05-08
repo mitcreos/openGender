@@ -7,8 +7,16 @@
 load_dict(name, force = FALSE)
 }
 \arguments{
-\item{force}{}
+\item{name}{name parameter}
+
+\item{force}{Force reload}
+}
+\value{
+logical success
 }
 \description{
 Title
+}
+\examples{
+[TODO]
 }

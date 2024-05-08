@@ -7,8 +7,16 @@
 clean_dicts(cleancache = TRUE, cleandata = TRUE)
 }
 \arguments{
-\item{cleandata}{}
+\item{cleancache}{logical}
+
+\item{cleandata}{logical}
+}
+\value{
+none
 }
 \description{
 Title
+}
+\examples{
+[TODO]
 }

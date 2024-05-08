@@ -6,6 +6,12 @@
 \usage{
 list_dict()
 }
+\value{
+tibble of dictionaries for matching
+}
 \description{
 Title
+}
+\examples{
+[TODO]
 }

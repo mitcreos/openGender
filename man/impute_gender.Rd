@@ -8,15 +8,28 @@ impute_gender(
   x,
   col_map = c(given = "given", year = "", country = ""),
   dicts = c("kantro"),
-  dict_api = "",
-  save_api = TRUE,
+  save_api_results = TRUE,
   fuzzy_match = TRUE,
   year_adjust = TRUE
 )
 }
 \arguments{
-\item{year_adjust}{}
+\item{col_map}{matching columns to impute}
+
+\item{dicts}{list of dictionaries}
+
+\item{save_api_results}{save api results}
+
+\item{fuzzy_match}{employ fuzzy matching}
+
+\item{year_adjust}{year adjustments}
+}
+\value{
+tibble with imputed gender as probability
 }
 \description{
 Title
+}
+\examples{
+[TODO]
 }

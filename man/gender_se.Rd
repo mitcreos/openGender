@@ -9,11 +9,14 @@ gender_se(x, simplify = TRUE)
 \arguments{
 \item{x}{data frame with instrumented by impute}
 
-\item{simplify}{}
+\item{simplify}{return values}
 }
 \value{
-mean value of each
+standard error value of each
 }
 \description{
 Title
+}
+\examples{
+[TODO]
 }

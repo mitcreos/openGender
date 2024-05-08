@@ -6,6 +6,15 @@
 \usage{
 show_dict(name)
 }
+\arguments{
+\item{name}{name of dictionary}
+}
+\value{
+tibble containing selected directionary
+}
 \description{
 Title
+}
+\examples{
+[TODO]
 }

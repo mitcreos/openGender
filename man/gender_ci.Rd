@@ -4,11 +4,21 @@
 \alias{gender_ci}
 \title{Title}
 \usage{
-gender_ci(x, simplify = TRUE)
+gender_ci(x, cl = 0.05, simplify = TRUE)
 }
 \arguments{
-\item{simplify}{}
+\item{x}{data frame with instrumented by impute}
+
+\item{cl}{confidence limit for interval}
+
+\item{simplify}{return values}
+}
+\value{
+mean tibble of upper lower values
 }
 \description{
 Title
+}
+\examples{
+[TODO]
 }

@@ -2,15 +2,12 @@
 #' @importFrom magrittr "%>%"
 #' @import rlang
 
-
 # Package: Constants --------------------------------------------------------
 OG_DICT_EXT <- "_dict"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_NOCOUNTRY <- "00"
 OG_DICT_NON <- -1
-
-
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -240,7 +237,8 @@ og_dict_combine <- function(dicts,
   dc.df %>%
     dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
     dplyr::group_by(given,year,country) %>%
-    dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n)
+    dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n) %>%
+    ungroup()
 }
 
 #' @importFrom dplyr filter
@@ -278,7 +276,6 @@ og_clean_gender <- function(x) {
     )
 }
 
-
 #' @importFrom tidyr replace_na
 og_clean_year<-function(x,ymin=1000,ymax=2050) {
   x %>%
@@ -305,11 +302,9 @@ og_clean_country <- function(x) {
     tidyr::replace_na(OG_DICT_NOCOUNTRY)
 }
 
-
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
 #' @importFrom dplyr mutate
 #' @importFrom memoise drop_cache
-
 og_api_call <- function(given, country, year, apikey, host, service) {
   res <- mem_og_api_call_inner(given, country, year, apikey, host, service)
   if (!res[["complete"]]) {
@@ -373,9 +368,9 @@ og_api_call_inner <-
 #' @importFrom httr2 request
 #' @importFrom httr2 req_retry
 #' @importFrom httr2 req_perform
-#' @importFrom httr2 response_is_error
+#' @importFrom httr2 resp_is_error
 #' @importFrom httr2 resp_status
-#' @importFrom httr2 resp_status_diesc
+#' @importFrom httr2 resp_status_desc
 #' @importFrom tibble tibble
 #' @importFrom httr2 resp_body_json
 #' @importFrom jsonlite fromJSON
@@ -404,7 +399,7 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
     httr2::req_retry(max_tries = options()[["opengender.retries"]]) %>%
     httr2::req_perform() -> resp
 
-  if (httr2::response_is_error(resp)) {
+  if (httr2::resp_is_error(resp)) {
     warning(
       service,
       " call failed:",
@@ -445,10 +440,10 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
 
 #' Title
 #'
-#' @return
+#' @return tibble of dictionaries for matching
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 list_dict <- function() {
   .pkgenv[["dicts"]][c("name", "desc", "type")]
 }
@@ -456,10 +451,11 @@ list_dict <- function() {
 
 #' Title
 #'
-#' @return
+#' @param name name of dictionary
+#' @return tibble containing selected directionary
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 show_dict <- function(name) {
 
   dict_entry <- og_dict_fetch_entry(name)
@@ -472,13 +468,13 @@ show_dict <- function(name) {
 
 #' Title
 #'
-#' @param name
-#' @param force
+#' @param name name parameter
+#' @param force Force reload
 #'
-#' @return
+#' @return logical success
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 load_dict <- function(name , force = FALSE) {
   dict_entry <- og_dict_fetch_entry(name)
   if (length(dict_entry)==0) {
@@ -496,14 +492,14 @@ load_dict <- function(name , force = FALSE) {
 
 #' Title
 #'
-#' @param data
-#' @param name
-#' @param save
+#' @param data tibble
+#' @param name dictionary name
+#' @param save permanently save
 #'
-#' @return
+#' @return logical success
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 add_local_dict <- function(data, name = "", save = FALSE) {
   dict_entry <- og_dict_fetch_entry(name)
   if (length(dict_entry)==0) {
@@ -521,13 +517,13 @@ add_local_dict <- function(data, name = "", save = FALSE) {
 
 #' Title
 #'
-#' @param cleancache
-#' @param cleandata
+#' @param cleancache logical
+#' @param cleandata logical
 #'
-#' @return
+#' @return none
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 clean_dicts <- function(cleancache = TRUE,
                         cleandata = TRUE) {
   if (cleandata) {
@@ -542,48 +538,52 @@ clean_dicts <- function(cleancache = TRUE,
 
 #' Title
 #'
-#' @param cols
-#' @param dicts
-#' @param dict_api
-#' @param save_api
-#' @param fuzzy_match
-#' @param year_adjust
+#' @param col_map matching columns to impute
+#' @param dicts list of dictionaries
+#' @param save_api_results save api results
+#' @param fuzzy_match employ fuzzy matching
+#' @param year_adjust year adjustments
 #'
-#' @return
+#' @return tibble with imputed gender as probability
 #' @export
 #' @importFrom dplyr select
 #' @importFrom dplyr rename
 #' @importFrom dplyr mutate
 #' @importFrom dplyr left_join
+#' @importFrom dplyr anti_join
+#' @importFrom dplyr inner_join
+#' @importFrom fuzzyjoin stringdist_join
 #' @importFrom tidyr nest
+#' @importFrom tidyr replace_na
 
 #'
-#' @examples
+#' @examples [TODO]
 
 impute_gender <- function(x, col_map = c(given="given", year="", country=""),
                           dicts = c("kantro"),
-                          dict_api = "" ,
-                          save_api = TRUE,
+                          save_api_results = TRUE,
                           fuzzy_match = TRUE,
                           year_adjust = TRUE) {
 
   all_ind <- c("given","year","country")
+  cmp <- col_map[col_map!=""]
+  cmp <- cmp[names(cmp) %in% all_ind]
 
   if (!"given" %in% names(cmp)) {
     stop("must supply a column of given names")
   }
 
-  if (!all(names(cl) %in% all_ind)) {
+  if (!all(names(col_map) %in% all_ind)) {
     warning("additional columns in col_map",
-            paste(names(cl)[!name(cl) %in% all_ind])
+            paste(names(col_map)[!name(cpl_map) %in% all_ind])
     )
   }
 
+  # TODO: separate dict_api
   dicts.tbl <- og_dict_combine(unique(dicts))
 
   # create reduced normalized input table
-  cmp <- col_map[col_map!=""]
-  cmp <- cmp[names(cmp) %in% all_ind]
+
   cmp_r <- setNames(names(cmp),cmp)
   cmp_nm <- names(cmp)
   cmp_nm_r <- names(cmp_r)
@@ -592,37 +592,86 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
   x_norm.df <- x %>%
     dplyr::select( {{cmp}} )
 
+  # extract names before normalizing
   x_nms_match.df <- x_norm.df %>%
-    dplyr::select(given_original=given) %>%
+    dplyr::select(given_input=given) %>%
     dplyr::distinct() %>%
     dplyr::mutate(
-      og_given_clean=og_clean_given(given_original)
-                           )
+      given_match=og_clean_given(given_input))
+
   x_norm.df %<>% mutate(gender="O") # temporary dummy for normalization
 
   x_norm.df %<>%
     og_dict_normalize() %>%
     dplyr::select(all_ind)
 
-  ### match to dict
+  ### fuzzy_match normalization
 
-  # complete match
+  # two-phase fuzzy join -- fuzziness should extend to name only
 
-  match_exact.df <-
+  if (fuzzy_match) {
+
+    unmatched_givens.df <- x_norm.df %>%
+      dplyr::anti_join(dicts.tbl %>% select(given),
+                       by=c("given"))
+
+    fuzzy_match.df <- unmatched_givens.df  %>%
+      dplyr::select(given_clean=given) %>%
+      fuzzyjoin::stringdist_inner_join(
+      dicts.tbl %>%
+        dplyr::select(given) ,
+      by = c(given_clean="given") ,
+      distance_col = "og_fuzzy_dist",
+      method = "cosine",
+      max_dist = .05
+    )  %>%
+    dplyr::rename(given_fuzzy=given) %>%
+    dplyr::group_by(given_clean) %>%
+    dplyr::slice_min(order_by = og_fuzzy_dist, n = 1) %>%
+    dplyr::slice_head(n = 1)  %>%
+    dplyr::ungroup()
+
+    x_norm.df %<>%
+      dplyr::left_join(fuzzy_match.df ,
+                       by=c(given="given_clean")) %>%
+      dplyr::mutate(given_match=tidyr::replace_na(given_match,given_clean)) %>%
+      dplyr::select(given=given_match,year,country)
+
+    x_nms_match.df %<>%
+      dplyr::left_join(fuzzy_match.df, by(given_input="given_clean")) %>%
+      dplyr::mutate(given_match.y=tidyr::replace_na(given_match.y,given_match.x)) %>%
+      select(given_input, given_match="given_match.y")
+
+  } else {
+    x_norm.df %<>%
+      mutate(given=given_clean,
+             og_fuzzy_dist=NA_real_)
+  }
+
+
+  ### match to static dictionaries
+
+  # full match
+
+  match_cur.df <-
     x_norm.df %>%
-    dplyr::left_join(dicts.tbl,
+    dplyr::inner_join(dicts.tbl,
                      by = all_ind
-                     ) %>%
-    filter(!is_missing(n))
+                     )
 
-  # incomplete match to
+  match_cum.df <- match_cur.df
+
+  unmatched.df <-
+    dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
+
+  match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+
+  # incomplete match to country
   # year interpolation
-  # fuzzy matches
   # API fallback
 
-  # combine results and rejoin to input
 
-  match_all.df <- dplyr::bind_rows(match_exact.df)
+  ### combine results and rejoin to input
 
   match_all.df %<>%
     dplyr::mutate(og_pr_F=pr_F) %>%
@@ -630,14 +679,14 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
     dplyr::select( {{cmp_nm}}, og_details, og_pr_F) %>%
     rename(og_given_clean = given)
 
-  byspec <- "given_original"; names(byspec) <- cmp_g
+  byspec <- "given_input"; names(byspec) <- cmp_g
   rejoined.df <-
     dplyr::left_join(x, x_nms_match.df,
                      by= byspec)
 
   rejoined.df %<>% dplyr::left_join(match_all.df,
-                           by = "og_given_clean") %>%
-    dplyr::select(!og_given_clean)
+                           by = "given_match") %>%
+  dplyr::select(!given_match)
 
   rejoined.df
 }
@@ -646,13 +695,13 @@ impute_gender <- function(x, col_map = c(given="given", year="", country=""),
 
 #' Title
 #'
-#' @param x
-#' @param simplify
+#' @param x (grouped) data frame with instrumented by impute
+#' @param simplify return values
 #'
-#' @return
+#' @return mean value of each
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 gender_mean <- function(x, simplify =TRUE) {
 
 }
@@ -660,38 +709,39 @@ gender_mean <- function(x, simplify =TRUE) {
 #' Title
 #'
 #' @param x data frame with instrumented by impute
-#' @param simplify
+#' @param simplify return values
 #'
-#' @return mean value of each
+#' @return standard error value of each
 #' @export
 #'
-#' @examples
+#' @examples [TODO]
 gender_se <- function(x,  simplify =TRUE) {
 
 }
 
 #' Title
 #'
-#' @param x
-#' @param simplify
+#' @param x  data frame with instrumented by impute
+#' @param cl  confidence limit for interval
+#' @param simplify return values
 #'
-#' @return
+#' @return mean tibble of upper lower values
 #' @export
 #'
-#' @examples
-gender_ci <- function(x, simplify =TRUE) {
+#' @examples [TODO]
+gender_ci <- function(x, cl = .05,  simplify =TRUE) {
 
 }
 
 #' Title
 #'
-#' @param x
-#' @param n
+#' @param x data frame with instrumented by impute
+#' @param n number of imputations to draw
 #'
-#' @return
+#' @return list of imputation of gender
 #' @export
 #'
-#' @examples
-gender_sample <- function(x) {
+#' @examples [TODO]
+gender_imp <- function(x, n=1) {
 
 }

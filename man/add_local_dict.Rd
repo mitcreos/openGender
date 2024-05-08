@@ -7,8 +7,18 @@
 add_local_dict(data, name = "", save = FALSE)
 }
 \arguments{
-\item{save}{}
+\item{data}{tibble}
+
+\item{name}{dictionary name}
+
+\item{save}{permanently save}
+}
+\value{
+logical success
 }
 \description{
 Title
+}
+\examples{
+[TODO]
 }

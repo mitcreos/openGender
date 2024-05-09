@@ -9,7 +9,7 @@ gender_se(x, simplify = TRUE)
 \arguments{
 \item{x}{data frame with instrumented by impute}
 
-\item{simplify}{return values}
+\item{simplify}{simplify return values}
 }
 \value{
 standard error value of each

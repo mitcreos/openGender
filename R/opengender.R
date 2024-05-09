@@ -156,7 +156,7 @@ og_dict_normalize <- function(x, threshold) {
     tidyr::pivot_wider(names_from="gender", names_prefix="pr_", values_from="pr", values_fill=0) %>%
     dplyr::arrange(given) %>%
     dplyr::filter(given!="[DUMMY]") %>%
-    dplyr::select(given,year,country,pr_F,pr_M,n)
+    dplyr::select(given,year,country,pr_F,pr_M,pr_O,n)
 
   # fill in missing N
   if (!"n" %in% colnames(x) ) {
@@ -554,6 +554,7 @@ clean_dicts <- function(cleancache = TRUE,
 #' @importFrom dplyr anti_join
 #' @importFrom dplyr inner_join
 #' @importFrom dplyr coalesce
+#' @importFrom tibble as_tibble
 #' @importFrom fuzzyjoin stringdist_join
 #' @importFrom tidyr nest
 
@@ -696,14 +697,14 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
   rejoined.df %<>% dplyr::left_join(match_cum.df,
                            by = c(given_match="given"))  %>%
-  dplyr::select(!given_match)
+  dplyr::select(!given_match) %>% as_tibble()
 
   rejoined.df
 }
 
 # Public: Estimation --------------------------------------------------------
 
-#' Title
+#' gender_mean
 #'
 #' @param x (grouped) data frame with instrumented by impute
 #' @param simplify return values
@@ -712,8 +713,44 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 #' @export
 #'
 #' @examples [TODO]
+#' @importFrom tidyr pivot_longer
+#' @importFrom purrr list_rbind
+#' @importFrom tibble tibble
+#' @importFrom dplyr bind_cols
+#' @importFrom dplyr starts_with
+#' @importFrom dplyr everything
+#' @importFrom dplyr mutate
+#' @importFrom tidyr pivot_longer
+
 gender_mean <- function(x,  simplify = TRUE) {
 
+    isinputdetailed <- is.list(x)
+    termlist <- c("per_F","per_M","per_O")
+
+    if(isinputdetailed) {
+      x.df <- purrr::list_bind(x)
+    } else {
+      x.df <- tibble::tibble( pre_F = x )
+      x.df %<>%
+        dplyr::mutate(pr_M=1-pr_F,pr_O=0*pr_F,n=NA_integer_)
+    }
+
+    x.df %>%
+        dplyr::summarize(
+          dplyr::across(dplyr::starts_with("pr_"),
+                        ~ mean(.x, na.rm = TRUE)
+          )
+        ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+        dplyr::rename(term=name , mean =value)
+
+    res <- dplyr::bind_cols(res_mn)
+
+    if (simplify) {
+      res_simple <- res[1,]
+      return(res[["term",res[[term]]==termlist[[1]]]])
+    } else {
+      return(res)
+    }
 }
 
 #' Title
@@ -725,23 +762,65 @@ gender_mean <- function(x,  simplify = TRUE) {
 #' @export
 #'
 #' @examples [TODO]
-gender_se <- function(x,  simplify = TRUE ) {
+gender_estimate <- function(x,  simplify_output = "tidy") {
 
+  termlist <- c("per_F","per_M","per_O")
+  output_types <- c("tidy","row","scalar")
+
+  if(!simplify_output %in% output_types) {
+    warning("unsupport output type -- using tidy")
+    simplify_output <- "tidy"
+  }
+
+  #normalize  from either pr_F or og_details  as vector, list, or tibble
+  if(is.data.frame(x)) {
+    if (ncol(x)==1) {
+      x.df <- x[[1]]
+    }
+  } else {
+    x.df <- x
+  }
+
+  if(inherits(x.df,"list")) {
+    x.df <- purrr::list_rbind(x.df)
+  } else if(is.numeric(x.df)) {
+    x.df <- tibble::tibble( pr_F = x.df )
+    x.df %<>%
+      dplyr::mutate(pr_M=1-pr_F,pr_O=0*pr_F,n=NA_integer_)
+  }
+
+  x.df %<>% dplyr::select(pr_M,pr_F,n) %>%
+    dplyr::mutate(pr_O=1-pr_M-pr_F) %>%
+    dplyr::relocate(pr_F,pr_M,pr_O,n)
+
+  res_cum <- NULL
+
+  x.df %>%
+    dplyr::summarize(
+      dplyr::across(dplyr::starts_with("pr_"),
+                    ~ mean(.x, na.rm = TRUE)
+      )
+    ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+    dplyr::rename(term=name , mean =value) -> res_cur
+
+
+  res_cum %<>% dplyr::bind_cols(res_cur)
+
+  if (simplify_output=="tidy") {
+    res_final <- res_cum
+  } else if (simplify_output=="scalar") {
+    res_final <- res_cum[[1,2]]
+  } else {
+    if (ncol(res_cum)==2) {
+      res_final <- res_cum %>%
+        tidyr::pivot_wider(names_from="term", values_from=2)
+    } else {
+      res_final <- res_cum[1,]
+    }
+  }
+  res_final
 }
 
-#' Title
-#'
-#' @param x  vector of  pr_f instrumented by impute
-#' @param cl  confidence limit for interval
-#' @param simplify simplify return values --return pr_f
-#'
-#' @return mean tibble of upper lower values
-#' @export
-#'
-#' @examples [TODO]
-gender_ci <- function(x,  cl = .05,  simplify = FALSE) {
-
-}
 
 #' Title
 #'

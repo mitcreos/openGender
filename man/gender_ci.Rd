@@ -4,14 +4,14 @@
 \alias{gender_ci}
 \title{Title}
 \usage{
-gender_ci(x, cl = 0.05, simplify = TRUE)
+gender_ci(x, cl = 0.05, simplify = FALSE)
 }
 \arguments{
-\item{x}{data frame with instrumented by impute}
+\item{x}{vector of  pr_f instrumented by impute}
 
 \item{cl}{confidence limit for interval}
 
-\item{simplify}{return values}
+\item{simplify}{simplify return values --return pr_f}
 }
 \value{
 mean tibble of upper lower values

@@ -712,34 +712,34 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 #' @export
 #'
 #' @examples [TODO]
-gender_mean <- function(x, simplify = TRUE) {
+gender_mean <- function(x,  simplify = TRUE) {
 
 }
 
 #' Title
 #'
 #' @param x data frame with instrumented by impute
-#' @param simplify return values
+#' @param simplify  simplify return values
 #'
 #' @return standard error value of each
 #' @export
 #'
 #' @examples [TODO]
-gender_se <- function(x,  simplify = TRUE) {
+gender_se <- function(x,  simplify = TRUE ) {
 
 }
 
 #' Title
 #'
-#' @param x  data frame with instrumented by impute
+#' @param x  vector of  pr_f instrumented by impute
 #' @param cl  confidence limit for interval
-#' @param simplify return values
+#' @param simplify simplify return values --return pr_f
 #'
 #' @return mean tibble of upper lower values
 #' @export
 #'
 #' @examples [TODO]
-gender_ci <- function(x, cl = .05,  simplify =TRUE) {
+gender_ci <- function(x,  cl = .05,  simplify = FALSE) {
 
 }
 
@@ -752,6 +752,6 @@ gender_ci <- function(x, cl = .05,  simplify =TRUE) {
 #' @export
 #'
 #' @examples [TODO]
-gender_imp <- function(x, n=1) {
+gender_imp <- function(x,  n=1) {
 
 }

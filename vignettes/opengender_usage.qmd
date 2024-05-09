@@ -86,72 +86,8 @@ res
 
 ```{r}
 
-gender_mean <- function(x,  simplify_output = "tidy") {
-
-    termlist <- c("per_F","per_M","per_O")
-    output_types <- c("tidy","row","scalar")
-    
-    if(!simplify_output %in% output_types) {
-      warning("unsupport output type -- using tidy")
-      simplify_output <- "tidy"
-    }
-
-    #normalize  from either pr_F or og_details  as vector, list, or tibble
-    if(is.data.frame(x)) {
-      if (ncol(x)==1) {
-        x.df <- x[[1]]
-      }
-    } else {
-       x.df <- x
-    }
-    
-    if(inherits(x.df,"list")) {
-      x.df <- purrr::list_rbind(x.df)
-    } else if(is.numeric(x.df)) {
-      x.df <- tibble::tibble( pr_F = x.df )
-      x.df %<>%
-        dplyr::mutate(pr_M=1-pr_F,pr_O=0*pr_F,n=NA_integer_)
-    } 
-    
-    x.df %<>% dplyr::select(pr_M,pr_F,n) %>%
-      dplyr::mutate(pr_O=1-pr_M-pr_F) %>%
-      dplyr::relocate(pr_F,pr_M,pr_O,n)
-
-    res_cum <- NULL
-    
-    x.df %>%
-        dplyr::summarize(
-          dplyr::across(dplyr::starts_with("pr_"),
-                        ~ mean(.x, na.rm = TRUE)
-          )
-        ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
-        dplyr::rename(term=name , mean =value) -> res_cur
-    
-
-    res_cum %<>% dplyr::bind_cols(res_cur)
-
-    if (simplify_output=="tidy") {
-       res_final <- res_cum 
-    } else if (simplify_output=="scalar") {
-      res_final <- res_cum[[1,2]]
-    } else {
-      if (ncol(res_cum)==2) {
-        res_final <- res_cum %>% 
-          tidyr::pivot_wider(names_from="term", values_from=2)
-      } else {
-        res_final <- res_cum[1,]
-      }
-    }
-    res_final
-}
-
-gender_mean(res[["og_pr_F"]])
-gender_mean(res[["og_pr_F"]], simplify_output="row")
-gender_mean(res[["og_pr_F"]], simplify_output="scalar")
-
-
 res %>% dplyr::select("og_pr_F") %>% gender_mean()
-res %>% dplyr::select("og_details") %>% gender_mean()
+res %>% dplyr::select("og_details") %>% gender_mean(simplify_output = "tidy")
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_F= mean(og_pr_F,na.rm=TRUE))
@@ -163,5 +99,5 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_genders = gender_mean(og_pr_F,simplify_output="row")) %>% tidyr::unpack(prop_genders)
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
-  dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_pr_F)))
+  dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_pr_F))) %>% tidyr::unnest(prop_F)
 ```

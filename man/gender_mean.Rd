@@ -2,9 +2,9 @@
 % Please edit documentation in R/opengender.R
 \name{gender_mean}
 \alias{gender_mean}
-\title{Title}
+\title{gender_mean}
 \usage{
-gender_mean(x, simplify = TRUE)
+gender_mean(x, simplify_output = "scalar")
 }
 \arguments{
 \item{x}{(grouped) data frame with instrumented by impute}
@@ -15,7 +15,7 @@ gender_mean(x, simplify = TRUE)
 mean value of each
 }
 \description{
-Title
+gender_mean
 }
 \examples{
 [TODO]

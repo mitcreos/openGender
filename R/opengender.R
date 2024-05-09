@@ -722,35 +722,9 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 #' @importFrom dplyr mutate
 #' @importFrom tidyr pivot_longer
 
-gender_mean <- function(x,  simplify = TRUE) {
-
-    isinputdetailed <- is.list(x)
-    termlist <- c("per_F","per_M","per_O")
-
-    if(isinputdetailed) {
-      x.df <- purrr::list_bind(x)
-    } else {
-      x.df <- tibble::tibble( pre_F = x )
-      x.df %<>%
-        dplyr::mutate(pr_M=1-pr_F,pr_O=0*pr_F,n=NA_integer_)
-    }
-
-    x.df %>%
-        dplyr::summarize(
-          dplyr::across(dplyr::starts_with("pr_"),
-                        ~ mean(.x, na.rm = TRUE)
-          )
-        ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
-        dplyr::rename(term=name , mean =value)
-
-    res <- dplyr::bind_cols(res_mn)
-
-    if (simplify) {
-      res_simple <- res[1,]
-      return(res[["term",res[[term]]==termlist[[1]]]])
-    } else {
-      return(res)
-    }
+gender_mean <- function(x,  simplify_output = "scalar") {
+  gender_estimate(x, simplify_output=simplify_output,
+                  estimates="mean")
 }
 
 #' Title
@@ -762,10 +736,17 @@ gender_mean <- function(x,  simplify = TRUE) {
 #' @export
 #'
 #' @examples [TODO]
-gender_estimate <- function(x,  simplify_output = "tidy") {
+gender_estimate <- function(x,  simplify_output = "tidy",
+                           estimates=c("mean","ci","se","sd"),
+                           ci_limit = .05) {
 
   termlist <- c("per_F","per_M","per_O")
   output_types <- c("tidy","row","scalar")
+  estimate_types <- c("mean","ci","se","sd")
+
+  if(length(setdiff(estimates,estimate_types))>0) {
+    warning("unsupported estimate types:",setdiff(estimates,estimate_types) )
+  }
 
   if(!simplify_output %in% output_types) {
     warning("unsupport output type -- using tidy")
@@ -795,16 +776,29 @@ gender_estimate <- function(x,  simplify_output = "tidy") {
 
   res_cum <- NULL
 
-  x.df %>%
-    dplyr::summarize(
-      dplyr::across(dplyr::starts_with("pr_"),
-                    ~ mean(.x, na.rm = TRUE)
-      )
-    ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
-    dplyr::rename(term=name , mean =value) -> res_cur
+  if("mean" %in% estimates) {
+    x.df %>%
+      dplyr::summarize(
+        dplyr::across(dplyr::starts_with("pr_"),
+                      ~ mean(.x, na.rm = TRUE)
+        )
+      ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+      dplyr::rename(term=name , mean =value) -> res_cur
 
+    res_cum %<>% dplyr::bind_cols(res_cur)
+  }
 
-  res_cum %<>% dplyr::bind_cols(res_cur)
+  if("sd" %in% estimates) {
+    x.df %>%
+      dplyr::summarize(
+        dplyr::across(dplyr::starts_with("pr_"),
+                      ~ sd(.x, na.rm = TRUE)
+        )
+      ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+      dplyr::rename(term=name , sd =value) -> res_cur
+
+    res_cum %<>% dplyr::bind_cols(res_cur)
+  }
 
   if (simplify_output=="tidy") {
     res_final <- res_cum

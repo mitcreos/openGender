@@ -1,15 +1,11 @@
-
-
-
-- Misc
-
-- Data management:
+Data management:
    - [DONE] built-in for testing
-   - download framework
-   - cached API results
+   - [DONE] download framework
+   - [DONE] API framework
    - [DONE] appdirs selection
+   - User added dictionaries
 
-- Dependencies manage
+Dependencies manage
   - [DONE] magrittr pipe
   - [DONE] roxygen
   - purrr insistent, etc
@@ -18,42 +14,49 @@ Test framework
 - corner cases
 - unit tests
 
+Estimation
+ - [DONE] estimation framework
+ - [DONE] mean and sd
+ - Uncertainty estimation
+    * se and confidence intervals
+    - baseline sample size correction
+    - gender probability propagation
 
- Uncertainty
- - baseline sample size correction
- - gender probability propagation
-
-Robustness
-- API backoff/retry
-- API key
+Normalization and matching
 - [DONE] Missing country
 - [DONE] Missing probabiility
 - [DONE] Missing year
 - [DONE] Name cleaning
 - [DONE] Fuzzy matching
-- Country aggregation
+- [DONE] Thresholding
+* Country aggregation
 - Year interpolation
 
 Data
 - [DONE] Kantrowicz
+* World Names
 - IPUMS
 - SSA
-- NAPP
-- GenderAPI
-- GenderIze
-- World Names
+- NAP
 - check against ISO codes package
 - Wikidata
 
+API Support
+- GenderAPI
+- GenderIze
+- [DONE] API caching
+- [DONE] API fallback
+- API backoff/retry framework
+- API key
 
 Performance
-- memoise caching API
-- distinct matches only
+- [DONE] memoise caching API
+- [DONE] distinct matches only
+- [DONE] downloading dictionary framework
 
 Reproducibility
-- stored matchings
-- provenance
-- API retrieval timestanmp
+- [DONE] saved matching info
+- provenance,  versioning, fixity
 
 Docs
 - functions

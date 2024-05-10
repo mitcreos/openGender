@@ -7,7 +7,8 @@ OG_DICT_EXT <- "_dict"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_NOCOUNTRY <- "00"
-OG_DICT_NON <- -1
+OG_DICT_ALLCOUNTRY <- "99"
+OG_DICT_NON <- 0
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -30,7 +31,6 @@ OG_DICT_NON <- -1
   )
   options(myOpt)
 
-
   .pkgenv[["dicts"]] <- og_init_dictlist()
   .pkgenv[["cacheobj"]] <- og_init_cache()
 
@@ -43,10 +43,10 @@ OG_DICT_NON <- -1
 #' @importFrom tibble tribble
 og_init_dictlist<-function() {
   tibble::tribble(
-    ~name, ~desc, ~version, ~type, ~loader,  ~uri,
-    "wgen2",   "world gender dictionary", 2, "external", "wgen", "https://dataverse.harvard.edu/api/access/datafile/4750352",
-    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "internal", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip",
-    "genderize",  "genderize", 1,  "api", "genderize", ""
+    ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri,
+    "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352",
+    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip",
+    "genderize",  "genderize", 1,  "api", "genderize", "https:://api.genderize.io"
   )
   #TODO: scan data directory for dictionaries
 }
@@ -146,6 +146,7 @@ og_dict_normalize <- function(x, threshold) {
   # reaggregation by given
 
   data_norm %<>%
+    na.omit() %>%
     dplyr::group_by(given,year,country) %>%
     dplyr::mutate(ng = sum(n)) %>%
     dplyr::group_by(given,gender, year,country) %>%
@@ -195,11 +196,23 @@ og_dict_load_added <- function(name, entry) {
 
 og_dict_load_external <- function(name, entry) {
   dict_file <- og_gen_dictfilepath(name)
-  if (!file.exists(file.path(load_dir, dict_file))) {
-    do.call(og_dict_genname(name),
+  if (!file.exists(dict_file)) {
+    entry[[1,"url"]]
+    tmp_file <- tempfile()
+    download.file(entry[[1,"url"]], tmpdest)
+
+    if (entry[["custom_fun"]]=="") {
+      file.copy(tmp_file,dict_file)
+    } else {
+      do.call(paste0("og_dict_process_", dict_entry[[1, "custom_fun"]]),
+              args = list(src=tmp_file, dest = dict_file))
+      return(rv)
+    }
+    do.call(og_dict_(name),
             args = list(entry = dict_entry))
   }
-  tmpdict <- read_rds(file.path(load_dir, dict_file))
+
+  tmpdict <- read_rds(dict_file)
   og_import_dict(tmpdict,
                  name,
                  save = FALSE,
@@ -239,7 +252,8 @@ og_dict_combine <- function(dicts,
     dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
     dplyr::group_by(given,year,country) %>%
     dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n) %>%
-    ungroup()
+    ungroup()  %>%
+    filter(n<missing_n_weight)
 }
 
 #' @importFrom dplyr filter
@@ -254,7 +268,6 @@ og_dict_fetch_entry<-function(name) {
 
 #' @import stringr
 #' @importFrom stringi stri_trans_general
-
 og_clean_given <- function(x) {
   x %>%
     stringr::str_squish() %>%
@@ -273,6 +286,7 @@ og_clean_gender <- function(x) {
     case_match(
       c("m","man","men","male") ~ "M",
       c("f","woman","women","female") ~ "F",
+      NA ~ NA,
       .default = "O"
     )
 }
@@ -304,6 +318,53 @@ og_clean_country <- function(x) {
 }
 
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
+
+og_dict_process_wgen <- function(src,dest) {
+
+  # Coding notes:
+  #   After expert inspection of data, applied coding rules:
+  #   - assigned column types
+  #   - recoded old country codes and use of fips codes insteda of iso
+  #   - normalized undocumented use of '?' as NA
+  #   - renamed variables for alignment with ingest
+  #   - stray non-integer counts
+  #   - a huge proportion of names are one-offs -- filtered as unreliable
+
+  min_obs <- 4
+
+  raw.df <- readr::read_tsv(src, col_types= c(
+    name = readr::col_character(),
+    code = readr::col_character(),
+    gender = readr::col_character(),
+    wgt = readr::col_double(),
+    nobs = readr::col_integer(),
+    src = readr::col_character()
+  ))
+
+  raw.df %<>%
+    dplyr::select(given=name,country=code,n=nobs,gender,) %>%
+    dplyr::mutate(country = dplyr::case_match(country,
+                                              "BU" ~ "MM",
+                                              "CB" ~ "KK",
+                                              "KS" ~ "KR",
+                                              .default = country),
+                  gender = dplyr::na_if(gender,"?"),
+                  n=as.integer(n))
+
+
+  raw.df %>%
+    dplyr::group_by(given) %>%
+    summarize(total =sum(n)) ->
+    grand_totals.df
+
+  raw.df %>% dplyr::anti_join(grand_totals.df
+                              %>% dplyr::filter(total < min_obs), by=c(n="total"))
+
+  raw.df %>% opengender:::og_dict_normalize() -> dict.df
+
+  saveRDS(raw.df,dest)
+}
+
 #' @importFrom dplyr mutate
 #' @importFrom memoise drop_cache
 og_api_call <- function(given, country, year, apikey, host, service) {
@@ -338,7 +399,6 @@ og_api_call <- function(given, country, year, apikey, host, service) {
 
   res
 }
-
 
 # Not used directly -- wrapped in memoise at startup
 og_api_call_inner <-
@@ -486,7 +546,7 @@ load_dict <- function(name , force = FALSE) {
     return(TRUE)
   }
 
-  rv <- do.call(paste0("og_dict_load_", dict_entry[[1, "loader"]]),
+  rv <- do.call(paste0("og_dict_load_", dict_entry[[1, "type"]]),
                 args = list(name=name, entry = dict_entry))
   return(rv)
 }
@@ -528,7 +588,7 @@ add_local_dict <- function(data, name = "", save = FALSE) {
 clean_dicts <- function(cleancache = TRUE,
                         cleandata = TRUE) {
   if (cleandata) {
-    file.remove(dir(options[["opengender.datadir"]], pattern = paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT)))
+    file.remove(dir(options()[["opengender.datadir"]], pattern = paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT)))
   }
   if (cleancache) {
     .pkgenv[["cacheobj"]]$reset()
@@ -713,14 +773,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 #' @export
 #'
 #' @examples [TODO]
-#' @importFrom tidyr pivot_longer
-#' @importFrom purrr list_rbind
-#' @importFrom tibble tibble
-#' @importFrom dplyr bind_cols
-#' @importFrom dplyr starts_with
-#' @importFrom dplyr everything
-#' @importFrom dplyr mutate
-#' @importFrom tidyr pivot_longer
+
 
 gender_mean <- function(x,  simplify_output = "scalar") {
   gender_estimate(x, simplify_output=simplify_output,
@@ -736,6 +789,17 @@ gender_mean <- function(x,  simplify_output = "scalar") {
 #' @export
 #'
 #' @examples [TODO]
+#' @importFrom tidyr pivot_longer
+#' @importFrom tidyr pivot_wider
+#' @importFrom purrr list_rbind
+#' @importFrom tibble tibble
+#' @importFrom dplyr bind_cols
+#' @importFrom dplyr starts_with
+#' @importFrom dplyr everything
+#' @importFrom dplyr mutate
+#' @importFrom dplyr relocate
+#' @importFrom dplyr rename
+
 gender_estimate <- function(x,  simplify_output = "tidy",
                            estimates=c("mean","ci","se","sd"),
                            ci_limit = .05) {
@@ -746,6 +810,10 @@ gender_estimate <- function(x,  simplify_output = "tidy",
 
   if(length(setdiff(estimates,estimate_types))>0) {
     warning("unsupported estimate types:",setdiff(estimates,estimate_types) )
+  }
+
+  if ((length(estimates) >1) && (simplify_output=="scalar")) {
+    warning("multiple estimates selected for scalar output, only first is returned")
   }
 
   if(!simplify_output %in% output_types) {
@@ -797,7 +865,7 @@ gender_estimate <- function(x,  simplify_output = "tidy",
       ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
       dplyr::rename(term=name , sd =value) -> res_cur
 
-    res_cum %<>% dplyr::bind_cols(res_cur)
+    res_cum %<>% dplyr::bind_cols(res_cur %>% dplyr::select(!term))
   }
 
   if (simplify_output=="tidy") {
@@ -805,12 +873,10 @@ gender_estimate <- function(x,  simplify_output = "tidy",
   } else if (simplify_output=="scalar") {
     res_final <- res_cum[[1,2]]
   } else {
-    if (ncol(res_cum)==2) {
-      res_final <- res_cum %>%
-        tidyr::pivot_wider(names_from="term", values_from=2)
-    } else {
-      res_final <- res_cum[1,]
-    }
+    res_final <-
+      res_cum %>%
+      dplyr::mutate(term=stringr::str_replace(term,"pr_","prop_")) %>%
+      tidyr::pivot_wider(values_from=!term,names_from=term)
   }
   res_final
 }
@@ -825,6 +891,6 @@ gender_estimate <- function(x,  simplify_output = "tidy",
 #' @export
 #'
 #' @examples [TODO]
-gender_imp <- function(x,  n=1) {
+gender_sample <- function(x, simplify=FALSE,  n=1) {
 
 }

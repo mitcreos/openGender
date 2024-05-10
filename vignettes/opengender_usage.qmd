@@ -101,3 +101,96 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_pr_F))) %>% tidyr::unnest(prop_F)
 ```
+
+```{r}
+
+res %>% dplyr::select("og_details") %>% gender_estimate() 
+res %>% dplyr::select("og_details") %>%
+  gender_estimate(simplify_output="scalar")
+
+res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
+  dplyr::group_by(AM) %>% dplyr::summarise(gender_estimates = gender_estimate(og_pr_F,simplify_output="row")) %>% tidyr::unpack(gender_estimates)
+```
+
+```{r}
+clean_dicts()
+show_dict("kantro")
+show_dict("wgen2")
+
+#tmpfile <- tempfile()
+#download.file("https://dataverse.harvard.edu/api/access/datafile/4750352",tmpfile)
+
+
+# Coding notes:
+#   After expert inspection of data, applied coding rules:
+#   - assigned column types 
+#   - recoded old country codes and use of fips codes insteda of iso
+#   - normalized undocumented use of '?' as NA 
+#   - renamed variables for alignment with ingest
+#   - stray non-integer counts
+#   - a huge proportion of names are one-offs -- filtered as unreliable
+
+raw.df <- readr::read_tsv(tmpfile, col_types= c(
+  name = readr::col_character(),
+  code = readr::col_character(),
+  gender = readr::col_character(),
+  wgt = readr::col_double(),
+  nobs = readr::col_integer(),
+  src = readr::col_character()
+))
+
+raw.df %<>% 
+  dplyr::select(given=name,country=code,n=nobs,gender,) %>%
+  dplyr::mutate(country = dplyr::case_match(country,
+                                            "BU" ~ "MM",
+                                            "CB" ~ "KK",
+                                            "KS" ~ "KR",
+                                            .default = country),
+                gender = dplyr::na_if(gender,"?"),
+                n=as.integer(n))
+
+
+raw.df %>% opengender:::og_dict_normalize() -> dict.df
+
+
+dict.df %>% 
+  slice_head(n=1000) %>%
+  dplyr::group_by(given,year) %>% 
+  dplyr::summarise(across(starts_with("pr_"), ~ weighted.mean(.x, w=n)),
+                   n=sum(n),
+                   .groups="drop_last") %>%
+  dplyr::ungroup() %>%
+  mutate(country="ALL")
+
+dict.df %>% 
+  slice_head(n=1000) %>%
+  dplyr::group_by(given,country) %>% 
+  dplyr::summarise(across(starts_with("pr_"), ~ weighted.mean(.x, w=n)),
+                   n=sum(n),
+                   .groups="drop_last") %>%
+  dplyr::ungroup() %>%
+  mutate(year="ALL")
+
+dict.df %>% 
+  slice_head(n=1000) %>%
+  dplyr::group_by(given) %>% 
+  dplyr::summarise(across(starts_with("pr_"), ~ weighted.mean(.x, w=n)),
+                   n=sum(n),
+                   .groups="drop_last") %>%
+  dplyr::ungroup() %>%
+  mutate(year="ALL") 
+
+raw.df %>% 
+  dplyr::group_by(given) %>% 
+  summarize(total =sum(n)) ->
+  grand_totals.df
+
+raw.df %>% dplyr::anti_join(grand_totals.df 
+                            %>% dplyr::filter(total < 4), by=c(n="total"))
+
+```
+
+\
+u
+
+"

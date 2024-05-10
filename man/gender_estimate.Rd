@@ -7,7 +7,7 @@
 gender_estimate(
   x,
   simplify_output = "tidy",
-  estimates = c("mean", "ci", "se", "sd"),
+  estimates = c("mean", "sd", "unc"),
   ci_limit = 0.05
 )
 }

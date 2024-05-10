@@ -104,7 +104,9 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
 
 ```{r}
 
-res %>% dplyr::select("og_details") %>% gender_estimate() 
+#res %>% dplyr::select("og_details") %>% gender_estimate()
+res %>% dplyr::select("og_details") %>% gender_estimate(estimates=c("mean","sd","unc"))
+
 res %>% dplyr::select("og_details") %>%
   gender_estimate(simplify_output="scalar")
 
@@ -117,9 +119,24 @@ clean_dicts()
 show_dict("kantro")
 show_dict("wgen2")
 
-#tmpfile <- tempfile()
-#download.file("https://dataverse.harvard.edu/api/access/datafile/4750352",tmpfile)
 
+    xdf %>%
+      dplyr::summarize(
+        dplyr::across(dplyr::starts_with("pr_"),
+                      ~list (opengender:::og_mn_boot(.x))
+        )
+      ) -> res_cur  tidyr::pivot_longer(dplyr::everything()) %>%
+      dplyr::rename(term=name , mean =value) -> res_cur
+    
+    
+    res_cur %>% 
+      dplyr::rowwise() %>%
+      dplyr::mutate(value_t = 
+                      tidyr::pivot_wider(
+                        value,names_from=term,values_from=estimate)) %>%  
+        select(term,value=value_t) %>%
+      tidyr::unnest(value)
+    
 
 dict.df %>% 
   slice_head(n=1000) %>%
@@ -152,7 +169,7 @@ dict.df %>%
 
 ```
 
-```{}
+```         
 ```
 
 \

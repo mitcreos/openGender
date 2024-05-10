@@ -138,7 +138,7 @@ og_dict_normalize <- function(x, threshold) {
   data_norm %<>% dplyr::mutate(given=og_clean_given(given))
   data_norm %<>%
     dplyr::bind_rows(
-      tibble::tibble(given=c("[DUMMY]"), gender=c("M","F","O"))
+      tibble::tibble(given=c("[DUMMY]"), gender=c("M","F","O"), n=1)
       ) # ensure gender types are populated
   data_norm %<>% dplyr::mutate(year=og_clean_year(year))
   data_norm %<>% dplyr::mutate(country=og_clean_country(country))
@@ -249,12 +249,12 @@ og_dict_combine <- function(dicts,
   dc.df <- purrr::map(dicts, show_dict) %>% list_rbind()
   dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
 
-  dc.df %>%
+ res <- dc.df %>%
     dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
     dplyr::group_by(given,year,country) %>%
     dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n) %>%
-    ungroup()  %>%
-    filter(n<missing_n_weight)
+    ungroup() %>%
+    filter(n>=missing_n_weight)
 }
 
 #' @importFrom dplyr filter
@@ -505,7 +505,7 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
 #' @importFrom dplyr summarize
 #' @importFrom rsample bootstraps
 #' @importFrom rsample analysis
-#' @importFrom rsample int_bcs
+#' @importFrom rsample int_bca
 
 og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
   if (!inherits(x,"data.frame")) {
@@ -813,7 +813,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
   match_cum.df %<>%
     dplyr::mutate(og_pr_F=pr_F) %>%
-    tidyr::nest(og_details= c(pr_F,pr_M,n,fuzzy_dist)) %>%
+    tidyr::nest(og_details= c(pr_F,pr_M,pr_M, n,fuzzy_dist)) %>%
     dplyr::select( {{cmp_nm}}, og_details, og_pr_F)
 
   byspec <- "given_input"; names(byspec) <- cmp_g
@@ -865,7 +865,7 @@ gender_mean <- function(x,  simplify_output = "scalar") {
 #' @importFrom dplyr rename
 
 gender_estimate <- function(x,  simplify_output = "tidy",
-                           estimates=c("mean","ci","se","sd"),
+                           estimates=c("mean","sd","unc"),
                            ci_limit = .05) {
 
   termlist <- c("per_F","per_M","per_O")
@@ -873,7 +873,7 @@ gender_estimate <- function(x,  simplify_output = "tidy",
   estimate_types <- c("mean","sd","unc")
 
   if(length(setdiff(estimates,estimate_types))>0) {
-    warning("unsupported estimate types:",setdiff(estimates,estimate_types) )
+    warning("unsupported estimate types:", paste(setdiff(estimates,estimate_types),sep=",") )
   }
 
   if ((length(estimates) >1) && (simplify_output=="scalar")) {
@@ -914,7 +914,8 @@ gender_estimate <- function(x,  simplify_output = "tidy",
         dplyr::across(dplyr::starts_with("pr_"),
                       ~ mean(.x, na.rm = TRUE)
         )
-      ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+      ) %>%
+      tidyr::pivot_longer(dplyr::everything()) %>%
       dplyr::rename(term=name , mean =value) -> res_cur
 
     res_cum %<>% dplyr::bind_cols(res_cur)
@@ -926,7 +927,8 @@ gender_estimate <- function(x,  simplify_output = "tidy",
         dplyr::across(dplyr::starts_with("pr_"),
                       ~ sd(.x, na.rm = TRUE)
         )
-      ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+      ) %>%
+      tidyr::pivot_longer(dplyr::everything()) %>%
       dplyr::rename(term=name , sd =value) -> res_cur
 
     res_cum %<>% dplyr::bind_cols(res_cur %>% dplyr::select(!term))
@@ -936,14 +938,21 @@ gender_estimate <- function(x,  simplify_output = "tidy",
     x.df %>%
       dplyr::summarize(
         dplyr::across(dplyr::starts_with("pr_"),
-                      ~ sd(.x, na.rm = TRUE)
+                      ~list (opengender:::og_mn_boot(.x))
         )
-      ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
-      dplyr::rename(term=name , sd =value) -> res_cur
+      ) %>%
+      tidyr::pivot_longer(dplyr::everything()) -> res_cur
 
-    res_cum %<>% dplyr::bind_cols(res_cur %>% dplyr::select(!term))
+    res_cur %<>%
+      dplyr::rowwise() %>%
+      dplyr::mutate(value_t =
+                      tidyr::pivot_wider(
+                        value,names_from=term,values_from=estimate)) %>%
+      select(term,value=value_t) %>%
+      tidyr::unnest(value)
+
+    res_cum %<>% dplyr::left_join(res_cur %>% dplyr::select(!term))
   }
-
 
   if (simplify_output=="tidy") {
     res_final <- res_cum

@@ -123,7 +123,6 @@ clean_dicts()
 show_dict("kantro")
 show_dict("wgen2")
     
-
 dict.df %>% 
   slice_head(n=1000) %>%
   dplyr::group_by(given,year) %>% 

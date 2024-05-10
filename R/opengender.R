@@ -4,6 +4,7 @@
 
 # Package: Constants --------------------------------------------------------
 OG_DICT_EXT <- "_dict"
+OG_NORM_EXT <- "_norm"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_NOCOUNTRY <- "00"
@@ -170,61 +171,83 @@ og_dict_normalize <- function(x, threshold) {
 }
 
 og_dict_load_internal <- function(name, entry) {
-  data(list=as.character(name), package = "opengender")
-  ds <- eval(as.symbol(name))
-  og_dict_import( ds , name, save_data = FALSE, normalize = TRUE)
-  return(invisible(TRUE))
+  dict_file <- og_dict_genfilepath(name)
+  if (file.exists(dict_file)) {
+    og_dict_import(name=name)
+  } else {
+    data(list=as.character(name), package = "opengender")
+    ds <- eval(as.symbol(name))
+    og_dict_import( x = ds , name = name )
+  }
 }
 
-og_dict_import <- function(data, name, save_data=TRUE, normalize=TRUE) {
+og_dict_import <- function(x, name, renormalize = FALSE) {
+  dict_file <- og_dict_genfilepath(name)
+  norm_file <- og_dict_gennormfilepath(name)
+
+  if (!file.exists(norm_file)) {
+    renormalize <- TRUE
+  }
+    # load data if not sent in
+  if(missing(x) || is.null(x)) {
+    data <- read_rds(dict_file)
+  } else {
+    renormalize <- TRUE
+    saveRDS(data, file = dict_file)
+  }
+
   # normalize
-  if (normalize) {
-    data_norm <- og_dict_normalize(data)
+  if (renormalize) {
+    data_norm <- og_dict_normalize(x)
+    saveRDS(data, file=norm_file)
+  } else {
+    data_norm <- read_rds(norm_file)
   }
 
   # insert in environment
-  assign(og_dict_genname(name), data_norm ,  envir = .pkgenv)
-
-  #TODO: manage save normalized versions
-  if (save_data) {
-    saveRDS(data, file = og_dict_genfilepath(name))
-  }
+  assign(og_dict_gennormname(name), data_norm ,  envir = .pkgenv)
 }
 
 og_dict_load_added <- function(name, entry) {
-  #TODO: complete
-  invisible(TRUE)
+  og_dict_import(name=name)
 }
 
 og_dict_load_external <- function(name, entry) {
   dict_file <- og_dict_genfilepath(name)
-  if (!file.exists(dict_file)) {
+  if (file.exists(dict_file)) {
+    og_dict_import(name=name)
+  } else {
+
     tmp_file <- tempfile()
     download.file(entry[[1,"uri"]], tmp_file)
 
     if (entry[["custom_fun"]]=="") {
-      file.copy(tmp_file,dict_file)
+      ds <- read_rds(tmp_file)
     } else {
-      do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
-              args = list(src=tmp_file, dest = dict_file))
-      return(rv)
+      ds <- do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
+              args = list(src=tmp_file))
     }
+    og_dict_import( x = ds , name = name )
   }
-
-  tmpdict <- read_rds(dict_file)
-  og_import_dict(tmpdict,
-                 name,
-                 save = FALSE,
-                 normalize = TRUE )
 }
 
-og_dict_genname<- function(name = "") {
+og_dict_gendictname<- function(name = "") {
   paste0(name, OG_DICT_EXT)
+}
+
+og_dict_gennormname<- function(name = "") {
+  paste0(name, OG_NORM_EXT)
 }
 
 og_dict_genfilepath<-function(name) {
   load_dir <- options("opengender.datadir")
-  rv <- file.path(load_dir,paste0(og_dict_genname(name), OG_DICT_FILE_EXT))
+  rv <- file.path(load_dir,paste0("dict_",og_dict_gendictname(name), OG_DICT_FILE_EXT))
+  rv
+}
+
+og_dict_gennormfilepath<-function(name) {
+  load_dir <- options("opengender.datadir")
+  rv <- file.path(load_dir,paste0("norm_",og_dict_gennormname(name), OG_DICT_FILE_EXT))
   rv
 }
 
@@ -238,7 +261,6 @@ og_dict_load_api <- function(name, entry) {
 #' @importFrom dplyr case_match
 #' @importFrom purrr map
 #' @importFrom purrr list_rbind
-
 
 og_dict_combine <- function(dicts,
               missing_n_weight = options("opengender.dict.minsize")[[1]]
@@ -577,6 +599,7 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
 #'
 #' @examples [TODO]
 list_dict <- function() {
+  # TODO: scan directory for added files
   .pkgenv[["dicts"]][c("name", "desc", "type")]
 }
 
@@ -594,7 +617,7 @@ show_dict <- function(name) {
   if (length(dict_entry)>0) {
       load_dict(name)
   }
-  rv <- get(og_dict_genname(name), envir=.pkgenv)
+  rv <- get(og_dict_gennormdictname(name), envir=.pkgenv)
   rv
 }
 
@@ -613,7 +636,7 @@ load_dict <- function(name , force = FALSE) {
     stop("Dictionary not found ", name)
   }
 
-  if (!force && exists(og_dict_genname(name), envir = .pkgenv)) {
+  if (!force && exists(og_dict_gennormname(name), envir = .pkgenv)) {
     return(TRUE)
   }
 
@@ -622,7 +645,7 @@ load_dict <- function(name , force = FALSE) {
   return(rv)
 }
 
-#' Title
+#' manage_local_dictionar
 #'
 #' @param data tibble
 #' @param name dictionary name
@@ -632,22 +655,29 @@ load_dict <- function(name , force = FALSE) {
 #' @export
 #'
 #' @examples [TODO]
-add_local_dict <- function(data, name = "", save = FALSE) {
+manage_local_dict <- function(x, name = "local_1", delete=FALSE, force=FALSE) {
 
-  #TODO: remove dictionaries
-  #TODO: manage list_dict entries
-
-  dict_entry <- og_dict_fetch_entry(name)
-  if (length(dict_entry)!=0) {
-    stop("Dictionary exists ", name)
+  if (delete) {
+    if (!is.null(x) || !force) {
+      stop("use x=NULL, force=TRUE, delete=TRUE for deletions")
+    }
+   file.remove(og_dict_gennormfilepath(name))
+   file.remove(og_dict_genfilepath(name))
   }
 
-  og_import_dict(
-    data = data,
-    name = name,
-    save = save,
-    normalize = TRUE,
-    type = "local"
+  #TODO: remove dictionaries
+  dict_entry <- og_dict_fetch_entry(name)
+  if (length(dict_entry)!=0) {
+    if (dict_entry[["type"]]!="user") {
+      stop("Cannot update non-local dictionaries")
+    } else if (!force) {
+      stop("Dictionary exists, use force=TRUE to replace")
+    }
+  }
+
+  og_dict_import(
+    x = x ,
+    name = name
   )
 }
 
@@ -661,9 +691,14 @@ add_local_dict <- function(data, name = "", save = FALSE) {
 #'
 #' @examples [TODO]
 clean_dicts <- function(cleancache = TRUE,
+                        cleannorm = TRUE,
                         cleandata = TRUE) {
   if (cleandata) {
     file.remove(dir(options()[["opengender.datadir"]], pattern = paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT)))
+    cleannorm <- TRUE
+  }
+  if (cleannorm) {
+    file.remove(dir(options()[["opengender.datadir"]], pattern = paste0('.*', OG_NORM_EXT, OG_DICT_FILE_EXT)))
   }
   if (cleancache) {
     .pkgenv[["cacheobj"]]$reset()

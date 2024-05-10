@@ -190,22 +190,24 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   }
     # load data if not sent in
   if(missing(x) || is.null(x)) {
-    data <- read_rds(dict_file)
+    x <- readRDS(dict_file)
   } else {
     renormalize <- TRUE
-    saveRDS(data, file = dict_file)
+    comment(x)<-description
+    saveRDS(x, file = dict_file)
   }
 
   # normalize
   if (renormalize) {
-    data_norm <- og_dict_normalize(x)
-    saveRDS(data, file=norm_file)
+    ds_norm <- og_dict_normalize(x)
+    comment(ds_norm)<-comment(x)
+    saveRDS(ds_norm, file=norm_file)
   } else {
-    data_norm <- read_rds(norm_file)
+    ds_norm <- readRDS(norm_file)
   }
 
   # insert in environment
-  assign(og_dict_gennormname(name), data_norm ,  envir = .pkgenv)
+  assign(og_dict_gennormname(name), ds_norm  ,  envir = .pkgenv)
 }
 
 og_dict_load_added <- function(name, entry) {
@@ -222,7 +224,8 @@ og_dict_load_external <- function(name, entry) {
     download.file(entry[[1,"uri"]], tmp_file)
 
     if (entry[["custom_fun"]]=="") {
-      ds <- read_rds(tmp_file)
+      ds <- readRDS(tmp_file)
+      comment(ds) <- entry[[1,"uri"]]
     } else {
       ds <- do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
               args = list(src=tmp_file))
@@ -241,13 +244,13 @@ og_dict_gennormname<- function(name = "") {
 
 og_dict_genfilepath<-function(name) {
   load_dir <- options("opengender.datadir")[[1]]
-  rv <- file.path(load_dir,paste0("dict_",og_dict_gendictname(name), OG_DICT_FILE_EXT))
+  rv <- file.path(load_dir,paste0(og_dict_gendictname(name), OG_DICT_FILE_EXT))
   rv
 }
 
 og_dict_gennormfilepath<-function(name) {
   load_dir <- options("opengender.datadir")[[1]]
-  rv <- file.path(load_dir,paste0("norm_",og_dict_gennormname(name), OG_DICT_FILE_EXT))
+  rv <- file.path(load_dir,paste0(og_dict_gennormname(name), OG_DICT_FILE_EXT))
   rv
 }
 
@@ -279,7 +282,10 @@ og_dict_combine <- function(dicts,
 #' @importFrom dplyr filter
 og_dict_fetch_entry<-function(name) {
   val_ <- name
-  dict_entry <-  .pkgenv[["dicts"]] %>% dplyr::filter(`name` == {{ val_ }} )
+
+  dict_entry <-
+    og_list_dict_internal() %>% dplyr::filter(`name` == {{ val_ }} )
+
   if (dim(dict_entry)[[1]]==0) {
     dict_entry <- tibble::tibble()
   }
@@ -350,7 +356,7 @@ og_clean_country <- function(x) {
 #' @importFrom readr col_character
 #' @importFrom readr col_integer
 #' @importFrom readr col_double
-og_dict_process_wgen2 <- function(src,dest) {
+og_dict_process_wgen2 <- function(src) {
 
   # Coding notes:
   #   After expert inspection of data, applied coding rules:
@@ -390,7 +396,8 @@ og_dict_process_wgen2 <- function(src,dest) {
   raw.df %>% dplyr::anti_join(grand_totals.df %>%
             dplyr::filter(total < min_obs), by=c(n="total"))
 
-  saveRDS(raw.df,dest)
+  comment(raw.df) <- "world gender dictionary"
+  raw.df
 }
 
 #' @importFrom dplyr mutate
@@ -598,18 +605,23 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
 #' @export
 #'
 #' @examples [TODO]
+#' @importFrom dplyr select
+
+list_dict <- function() {
+  res<- og_list_dict_internal() %>% dplyr::select(name,desc,type)
+}
+
 #' @importFrom stringr str_extract
 #' @importFrom tibble tibble
-#' @importFrom dplyr::pull
-#' @importFrom dplyr::bind_rows
-list_dict <- function() {
-  # TODO: scan directory for added files
+#' @importFrom dplyr pull
+#' @importFrom dplyr bind_rows
+og_list_dict_internal<-function() {
   core.df <-.pkgenv[["dicts"]][c("name", "desc", "type")]
   load_dir <- options("opengender.datadir")[[1]]
-  loaded <- dir(path=load_dir, pattern =paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT))
-  loaded_names <- stringr::str_extract(loaded,
-                pattern =paste0('(','.*',')', OG_DICT_EXT, OG_DICT_FILE_EXT))
-  added_dicts <- setdiff(loaded_names, cored.df %>% dplyr::pull(name))
+  loaded <- dir(path=load_dir, pattern =paste0('^.*', OG_DICT_EXT, OG_DICT_FILE_EXT))
+  loaded_names <- stringr::str_replace(loaded,
+                                       pattern =paste0('^(','.*',')', OG_DICT_EXT, OG_DICT_FILE_EXT), "\\1")
+  added_dicts <- setdiff(loaded_names, core.df %>% dplyr::pull(name))
 
   #TODO: extract description from user added
   added_dicts.df <- tibble(name=added_dicts,desc="user added",type="added")
@@ -627,10 +639,8 @@ list_dict <- function() {
 show_dict <- function(name) {
 
   dict_entry <- og_dict_fetch_entry(name)
-  if (length(dict_entry)>0) {
-      load_dict(name)
-  }
-  rv <- get(og_dict_gennormdictname(name), envir=.pkgenv)
+  load_dict(name)
+  rv <- get(og_dict_gennormname(name), envir=.pkgenv)
   rv
 }
 
@@ -658,7 +668,7 @@ load_dict <- function(name , force = FALSE) {
   return(rv)
 }
 
-#' manage_local_dictionar
+#' manage_local_dictionary
 #'
 #' @param data tibble
 #' @param name dictionary name
@@ -668,7 +678,10 @@ load_dict <- function(name , force = FALSE) {
 #' @export
 #'
 #' @examples [TODO]
-manage_local_dict <- function(x, name = "local_1", delete=FALSE, force=FALSE) {
+manage_local_dict <- function(x, name = "local_1", description="a local dictionary",
+                              delete=FALSE, force=FALSE) {
+
+  #TODO: embed description from user added
 
   if (delete) {
     if (!is.null(x) || !force) {
@@ -678,7 +691,6 @@ manage_local_dict <- function(x, name = "local_1", delete=FALSE, force=FALSE) {
    file.remove(og_dict_genfilepath(name))
   }
 
-  #TODO: remove dictionaries
   dict_entry <- og_dict_fetch_entry(name)
   if (length(dict_entry)!=0) {
     if (dict_entry[["type"]]!="user") {
@@ -688,9 +700,11 @@ manage_local_dict <- function(x, name = "local_1", delete=FALSE, force=FALSE) {
     }
   }
 
+  comment(x) <- description
   og_dict_import(
     x = x ,
-    name = name
+    name = name,
+    description=description
   )
 }
 
@@ -707,11 +721,15 @@ clean_dicts <- function(cleancache = TRUE,
                         cleannorm = TRUE,
                         cleandata = TRUE) {
   if (cleandata) {
-    file.remove(dir(options()[["opengender.datadir"]], pattern = paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT)))
+    file.remove(dir(options()[["opengender.datadir"]],
+                    full.names=TRUE,
+                    pattern = paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT)))
     cleannorm <- TRUE
   }
   if (cleannorm) {
-    file.remove(dir(options()[["opengender.datadir"]], pattern = paste0('.*', OG_NORM_EXT, OG_DICT_FILE_EXT)))
+    file.remove(dir(options()[["opengender.datadir"]],
+                    full.names=TRUE,
+                    pattern = paste0('.*', OG_NORM_EXT, OG_DICT_FILE_EXT)))
   }
   if (cleancache) {
     .pkgenv[["cacheobj"]]$reset()
@@ -825,7 +843,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
       dplyr::left_join(fuzzy_match.df,
                        by=c(given_match="given_clean")) %>%
       dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,given_match)) %>%
-      dplyr::select(given_input, given_match=given_fuzzy,fuzzy_dist)
+      dplyr::select(given_input, given_match=given_fuzzy)
 
   } else {
     x_norm.df %<>%

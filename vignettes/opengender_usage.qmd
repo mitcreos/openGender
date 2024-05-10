@@ -104,14 +104,18 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
 
 ```{r}
 
-#res %>% dplyr::select("og_details") %>% gender_estimate()
-res %>% dplyr::select("og_details") %>% gender_estimate(estimates=c("mean","sd","unc"))
+res %>% dplyr::select("og_details") %>% gender_estimate()
 
 res %>% dplyr::select("og_details") %>%
-  gender_estimate(simplify_output="scalar")
+  gender_estimate(simplify_output="scalar", estimates=c("mean","sd"))
 
-res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
-  dplyr::group_by(AM) %>% dplyr::summarise(gender_estimates = gender_estimate(og_pr_F,simplify_output="row")) %>% tidyr::unpack(gender_estimates)
+res %>% 
+  dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
+  dplyr::group_by(AM) %>% 
+  dplyr::summarise(gender_estimates =
+        gender_estimate(og_pr_F,simplify_output="row",
+                        estimates=c("mean","sd"))) %>% 
+  tidyr::unpack(gender_estimates)
 ```
 
 ```{r}

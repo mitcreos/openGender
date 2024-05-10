@@ -948,10 +948,10 @@ gender_estimate <- function(x,  simplify_output = "tidy",
       dplyr::mutate(value_t =
                       tidyr::pivot_wider(
                         value,names_from=term,values_from=estimate)) %>%
-      select(term,value=value_t) %>%
+      select(term=name,value=value_t) %>%
       tidyr::unnest(value)
 
-    res_cum %<>% dplyr::left_join(res_cur %>% dplyr::select(!term))
+    res_cum %<>% dplyr::left_join(res_cur,by="term")
   }
 
   if (simplify_output=="tidy") {

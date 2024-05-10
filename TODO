@@ -53,6 +53,7 @@ Performance
 - [DONE] memoise caching API
 - [DONE] distinct matches only
 - [DONE] downloading dictionary framework
+- save normalized versions
 
 Reproducibility
 - [DONE] saved matching info

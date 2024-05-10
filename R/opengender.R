@@ -181,44 +181,41 @@ og_dict_import <- function(data, name, save_data=TRUE, normalize=TRUE) {
   if (normalize) {
     data_norm <- og_dict_normalize(data)
   }
+
   # insert in environment
   assign(og_dict_genname(name), data_norm ,  envir = .pkgenv)
 
-  # TODO: save to data dir
+  #TODO: manage save normalized versions
   if (save_data) {
-    saveRDS(data_norm, file = og_dict_genfilepath(name))
+    saveRDS(data, file = og_dict_genfilepath(name))
   }
 }
 
 og_dict_load_added <- function(name, entry) {
-  #TODO
+  #TODO: complete
   invisible(TRUE)
 }
 
 og_dict_load_external <- function(name, entry) {
-  dict_file <- og_gen_dictfilepath(name)
+  dict_file <- og_dict_genfilepath(name)
   if (!file.exists(dict_file)) {
-    entry[[1,"url"]]
     tmp_file <- tempfile()
-    download.file(entry[[1,"url"]], tmpdest)
+    download.file(entry[[1,"uri"]], tmp_file)
 
     if (entry[["custom_fun"]]=="") {
       file.copy(tmp_file,dict_file)
     } else {
-      do.call(paste0("og_dict_process_", dict_entry[[1, "custom_fun"]]),
+      do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
               args = list(src=tmp_file, dest = dict_file))
       return(rv)
     }
-    do.call(og_dict_(name),
-            args = list(entry = dict_entry))
   }
 
   tmpdict <- read_rds(dict_file)
   og_import_dict(tmpdict,
                  name,
                  save = FALSE,
-                 normalize = TRUE,
-                 type = "external")
+                 normalize = TRUE )
 }
 
 og_dict_genname<- function(name = "") {
@@ -320,7 +317,18 @@ og_clean_country <- function(x) {
 
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
 
-og_dict_process_wgen <- function(src,dest) {
+#' @importFrom dplyr group_by
+#' @importFrom dplyr select
+#' @importFrom dplyr mutate
+#' @importFrom dplyr case_match
+#' @importFrom dplyr na_if
+#' @importFrom dplyr summarize
+#' @importFrom dplyr anti_join
+#' @importFrom readr read_tsv
+#' @importFrom readr col_character
+#' @importFrom readr col_integer
+#' @importFrom readr col_double
+og_dict_process_wgen2 <- function(src,dest) {
 
   # Coding notes:
   #   After expert inspection of data, applied coding rules:
@@ -352,16 +360,13 @@ og_dict_process_wgen <- function(src,dest) {
                   gender = dplyr::na_if(gender,"?"),
                   n=as.integer(n))
 
-
   raw.df %>%
     dplyr::group_by(given) %>%
-    summarize(total =sum(n)) ->
+    splyr::summarize(total =sum(n)) ->
     grand_totals.df
 
-  raw.df %>% dplyr::anti_join(grand_totals.df
-                              %>% dplyr::filter(total < min_obs), by=c(n="total"))
-
-  raw.df %>% opengender:::og_dict_normalize() -> dict.df
+  raw.df %>% dplyr::anti_join(grand_totals.df %>%
+            dplyr::filter(total < min_obs), by=c(n="total"))
 
   saveRDS(raw.df,dest)
 }
@@ -628,9 +633,13 @@ load_dict <- function(name , force = FALSE) {
 #'
 #' @examples [TODO]
 add_local_dict <- function(data, name = "", save = FALSE) {
+
+  #TODO: remove dictionaries
+  #TODO: manage list_dict entries
+
   dict_entry <- og_dict_fetch_entry(name)
-  if (length(dict_entry)==0) {
-    stop("Dictionary not found ", name)
+  if (length(dict_entry)!=0) {
+    stop("Dictionary exists ", name)
   }
 
   og_import_dict(

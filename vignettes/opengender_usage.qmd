@@ -122,24 +122,6 @@ res %>%
 clean_dicts()
 show_dict("kantro")
 show_dict("wgen2")
-
-
-    xdf %>%
-      dplyr::summarize(
-        dplyr::across(dplyr::starts_with("pr_"),
-                      ~list (opengender:::og_mn_boot(.x))
-        )
-      ) -> res_cur  tidyr::pivot_longer(dplyr::everything()) %>%
-      dplyr::rename(term=name , mean =value) -> res_cur
-    
-    
-    res_cur %>% 
-      dplyr::rowwise() %>%
-      dplyr::mutate(value_t = 
-                      tidyr::pivot_wider(
-                        value,names_from=term,values_from=estimate)) %>%  
-        select(term,value=value_t) %>%
-      tidyr::unnest(value)
     
 
 dict.df %>% 

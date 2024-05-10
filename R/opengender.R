@@ -67,7 +67,7 @@ og_find_cachedir <- function() {
   tmpd <- rappdirs::user_cache_dir(appname = "opengender")
   if (!dir.exists(tmpd) && !dir.create(tmpd, recursive = TRUE)) {
     tmpd <- tmpdir(check = TRUE)
-    tmpd <- file.path(tmpd / opengender)
+    tmpd <- file.path(tmpd,"opengender")
     if (!dir.exists(tmpd)) {
       dir.create(tmpd, recursive = TRUE)
     }
@@ -80,7 +80,7 @@ og_find_datadir <- function() {
   tmpd <- rappdirs::user_cache_dir(appname = "opengender")
   if (!dir.exists(tmpd) && !dir.create(tmpd, recursive = TRUE)) {
     tmpd <- tmpdir(check = TRUE)
-    tmpd <- file.path(tmpd / opengender)
+    tmpd <- file.path(tmpd,"opengender")
     if (!dir.exists(tmpd)) {
       dir.create(tmpd, recursive = TRUE)
     }
@@ -240,13 +240,13 @@ og_dict_gennormname<- function(name = "") {
 }
 
 og_dict_genfilepath<-function(name) {
-  load_dir <- options("opengender.datadir")
+  load_dir <- options("opengender.datadir")[[1]]
   rv <- file.path(load_dir,paste0("dict_",og_dict_gendictname(name), OG_DICT_FILE_EXT))
   rv
 }
 
 og_dict_gennormfilepath<-function(name) {
-  load_dir <- options("opengender.datadir")
+  load_dir <- options("opengender.datadir")[[1]]
   rv <- file.path(load_dir,paste0("norm_",og_dict_gennormname(name), OG_DICT_FILE_EXT))
   rv
 }
@@ -598,9 +598,22 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
 #' @export
 #'
 #' @examples [TODO]
+#' @importFrom stringr str_extract
+#' @importFrom tibble tibble
+#' @importFrom dplyr::pull
+#' @importFrom dplyr::bind_rows
 list_dict <- function() {
   # TODO: scan directory for added files
-  .pkgenv[["dicts"]][c("name", "desc", "type")]
+  core.df <-.pkgenv[["dicts"]][c("name", "desc", "type")]
+  load_dir <- options("opengender.datadir")[[1]]
+  loaded <- dir(path=load_dir, pattern =paste0('.*', OG_DICT_EXT, OG_DICT_FILE_EXT))
+  loaded_names <- stringr::str_extract(loaded,
+                pattern =paste0('(','.*',')', OG_DICT_EXT, OG_DICT_FILE_EXT))
+  added_dicts <- setdiff(loaded_names, cored.df %>% dplyr::pull(name))
+
+  #TODO: extract description from user added
+  added_dicts.df <- tibble(name=added_dicts,desc="user added",type="added")
+  dplyr::bind_rows(core.df,added_dicts.df)
 }
 
 

@@ -119,9 +119,15 @@ res %>%
 ```
 
 ```{r}
-clean_dicts()
-show_dict("kantro")
+
+
+data(kantro)
+bizarro <- kantro %>% 
+  dplyr::mutate(gender= dplyr::case_match(gender, "M"~"F", "F"~"M"))
+manage_dicts(bizarro,"bizarro")
 show_dict("wgen2")
+
+
     
 dict.df %>% 
   slice_head(n=1000) %>%

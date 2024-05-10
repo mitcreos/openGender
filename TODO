@@ -18,7 +18,7 @@ Estimation
  - [DONE] estimation framework
  - [DONE] mean and sd
  - Uncertainty estimation
-    * se and confidence intervals
+    - [DONE]  single bootstrap  and confidence intervals
     - baseline sample size correction
     - gender probability propagation
 
@@ -53,7 +53,7 @@ Performance
 - [DONE] memoise caching API
 - [DONE] distinct matches only
 - [DONE] downloading dictionary framework
-- save normalized versions
+- [DONE] save normalized versions
 
 Reproducibility
 - [DONE] saved matching info

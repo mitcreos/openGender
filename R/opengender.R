@@ -27,7 +27,8 @@ OG_DICT_NON <- 0
     opengender.retries = 3,
     opengender.backoff = 10,
     opengender.fuzzymax = .05,
-    opengender.dict.minsize = 26
+    opengender.dict.minsize = 26,
+    opengender.bootreps = 1000
   )
   options(myOpt)
 
@@ -494,7 +495,72 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
   rv
 }
 
+# Internals: estimation functions  --------------------------------------------------------
 
+#' @importFrom purrr map
+#' @importFrom tibble tibble
+#' @importFrom tidyr unnest
+#' @importFrom dplyr mutate
+#' @importFrom dplyr pull
+#' @importFrom dplyr summarize
+#' @importFrom rsample bootstraps
+#' @importFrom rsample analysis
+#' @importFrom rsample int_bcs
+
+og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
+  if (!inherits(x,"data.frame")) {
+    x <- tibble::tibble(value=x)
+  }
+
+  est_fun <- function(dat) {
+    dat  %>%
+      dplyr::summarize(estimate=mean(value,na.rm=TRUE)) %>%
+      dplyr::pull(estimate)
+  }
+
+  se_fun <- function(dat) {
+    tmp <- dat  %>%
+      dplyr::summarize(sd=sd(value,na.rm=TRUE),
+                       adjn=sum(!is.na(value)) ) %>%
+      dplyr::mutate(estimate = sqrt(sd/adjn) ) %>%
+      dplyr::pull(estimate)
+  }
+
+  term_fun <- function(split, termname="termx", ...) {
+    est_split <- split %>%
+      rsample::analysis() %>%
+      est_fun
+
+    se_split <- split %>%
+      rsample::analysis() %>%
+      se_fun
+
+    tibble::tibble(
+      term = termname,
+      estimate = est_split,
+      std.error = se_split
+    )
+  }
+  x_rs <- x %>%
+    rsample::bootstraps( times = rep, apparent = TRUE) %>%
+    dplyr::mutate(models =
+                    purrr::map(splits, function(x)term_fun(x,termname="mean")))
+
+
+  boot_se <-
+    x_rs %>%
+    dplyr::select(models) %>%
+    tidyr::unnest(models) %>%
+    dplyr::summarize(estimate=mean(std.error,na.rm=TRUE)) %>%
+    dplyr::pull()
+
+  bca_res <- rsample::int_bca(x_rs, models, .fn=term_fun, termname="mean")
+  tibble::tibble(term = c("imputed","lower","upper","se"),
+                 estimate= c(bca_res$.estimate,
+                 ymin=bca_res$.lower,
+                 ymax=bca_res$.upper,
+                 yse=boot_se))
+}
 
 # Public: Dictionary Manipulation --------------------------------------------------------
 
@@ -595,7 +661,7 @@ clean_dicts <- function(cleancache = TRUE,
   }
 }
 
-# Public: Imputation --------------------------------------------------------
+# Public: matching and analysis  --------------------------------------------------------
 
 #' add_gender_predictions
 #'
@@ -762,8 +828,6 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
   rejoined.df
 }
 
-# Public: Estimation --------------------------------------------------------
-
 #' gender_mean
 #'
 #' @param x (grouped) data frame with instrumented by impute
@@ -806,7 +870,7 @@ gender_estimate <- function(x,  simplify_output = "tidy",
 
   termlist <- c("per_F","per_M","per_O")
   output_types <- c("tidy","row","scalar")
-  estimate_types <- c("mean","ci","se","sd")
+  estimate_types <- c("mean","sd","unc")
 
   if(length(setdiff(estimates,estimate_types))>0) {
     warning("unsupported estimate types:",setdiff(estimates,estimate_types) )
@@ -867,6 +931,19 @@ gender_estimate <- function(x,  simplify_output = "tidy",
 
     res_cum %<>% dplyr::bind_cols(res_cur %>% dplyr::select(!term))
   }
+
+  if("unc" %in% estimates) {
+    x.df %>%
+      dplyr::summarize(
+        dplyr::across(dplyr::starts_with("pr_"),
+                      ~ sd(.x, na.rm = TRUE)
+        )
+      ) %>% tidyr::pivot_longer(dplyr::everything()) %>%
+      dplyr::rename(term=name , sd =value) -> res_cur
+
+    res_cum %<>% dplyr::bind_cols(res_cur %>% dplyr::select(!term))
+  }
+
 
   if (simplify_output=="tidy") {
     res_final <- res_cum

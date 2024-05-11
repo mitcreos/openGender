@@ -116,7 +116,7 @@ og_find_datadir <- function() {
 #' @importFrom tibble tibble
 #' @importFrom tidyr pivot_wider
 
-og_dict_normalize <- function(x, threshold) {
+og_dict_normalize <- function(x, min_count_default=1) {
   v_req <- c("given","gender")
   v_opt <- c("country","year","n")
 
@@ -132,6 +132,10 @@ og_dict_normalize <- function(x, threshold) {
   }
 
   data_norm <- x
+
+  if (!is.null(attr(data_norm,"min_obs_threshhold"))) {
+    min_count_default <- attr(data_norm,"min_obs")
+  }
 
   data_norm %<>% dplyr::select(all_of(v_req),any_of(v_opt))
 
@@ -152,13 +156,24 @@ og_dict_normalize <- function(x, threshold) {
   # clean columns: given, country, year, pr_f, N
 
   data_norm %<>% dplyr::mutate(given=og_clean_given(given))
-  data_norm %<>%
-    dplyr::bind_rows(
-      tibble::tibble(given=c("[DUMMY]"), gender=c("M","F","O"), n=1)
-      ) # ensure gender types are populated
   data_norm %<>% dplyr::mutate(year=og_clean_year(year))
   data_norm %<>% dplyr::mutate(country=og_clean_country(country))
   data_norm %<>% dplyr::mutate(gender=og_clean_gender(gender))
+
+  data_norm %>%
+    dplyr::group_by(given) %>%
+    dplyr::summarize(total =sum(n)) ->
+    grand_totals.df
+
+  data_norm %<>% dplyr::anti_join(grand_totals.df %>%
+     dplyr::filter(total < min_count_default), by=c(n="total"))
+
+  data_norm %<>% dplyr::bind_rows(
+    tibble::tibble(given="[DUMMY]", gender=c("F","O","M"),
+                   year = OG_DICT_NOYEAR , country = OG_DICT_NOCOUNTRY,
+                   n = 0)
+    # ensure dictionary has full range of gender codes
+  )
 
   # reaggregation by given
 
@@ -424,14 +439,7 @@ og_dict_process_wgen2 <- function(src) {
                   gender = dplyr::na_if(gender,"?"),
                   n=as.integer(n))
 
-  raw.df %>%
-    dplyr::group_by(given) %>%
-    dplyr::summarize(total =sum(n)) ->
-    grand_totals.df
-
-  raw.df %>% dplyr::anti_join(grand_totals.df %>%
-            dplyr::filter(total < min_obs), by=c(n="total"))
-
+  attr(raw.df,"min_obs_threshhold") <- min_obs
   comment(raw.df) <- "world gender dictionary"
   raw.df
 }

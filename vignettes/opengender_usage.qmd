@@ -66,7 +66,7 @@ ssa_baby_names.df <- structure(list( firstname = c("James", "Robert", "John", "M
 
 ```
 
-```{r}
+```{r gender-coding}
 library(magrittr)
 
 names_sample.df <- ssa_baby_names.df %>%
@@ -84,7 +84,7 @@ res
 
 ```
 
-```{r}
+```{r point-estimation}
 
 res %>% dplyr::select("og_pr_F") %>% gender_mean()
 res %>% dplyr::select("og_details") %>% gender_mean(simplify_output = "tidy")
@@ -102,9 +102,8 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_pr_F))) %>% tidyr::unnest(prop_F)
 ```
 
-```{r}
+```{r estimates-with-uncertainty}
 
-res %>% dplyr::select("og_details") %>% gender_estimate()
 
 res %>% dplyr::select("og_details") %>%
   gender_estimate(simplify_output="scalar", estimates=c("mean","sd"))
@@ -116,9 +115,14 @@ res %>%
         gender_estimate(og_pr_F,simplify_output="row",
                         estimates=c("mean","sd"))) %>% 
   tidyr::unpack(gender_estimates)
+
+res %>% dplyr::select("og_details") %>%
+  dplyr::slice_sample(n=100) %>%
+  gender_estimate()
+
 ```
 
-```{r}
+```{r user-dict}
 list_dicts()
 clean_dicts() 
 list_dicts()
@@ -142,6 +146,7 @@ show_dict("bizarro")
 ```{r}
 
 show_dict("wgen2")
+list_dicts()
 
 dict.df %>% 
   slice_head(n=1000) %>%

@@ -43,14 +43,29 @@ OG_DICT_NON <- 0
 }
 
 #' @importFrom tibble tribble
+#' @importFrom stringr str_extract
+#' @importFrom tibble tibble
+#' @importFrom dplyr pull
+#' @importFrom dplyr bind_rows
+#' @importFrom dplyr mutate
 og_init_dictlist<-function() {
-  tibble::tribble(
+  core.df <- tibble::tribble(
     ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri,
     "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352",
     "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip",
     "genderize",  "genderize", 1,  "api", "genderize", "https:://api.genderize.io"
-  )
-  #TODO: scan data directory for dictionaries
+  ) %>%
+    dplyr::mutate( loaded=FALSE)
+
+  load_dir <- options("opengender.datadir")[[1]]
+  loaded <- dir(path=load_dir, pattern =paste0('^.*', OG_DICT_EXT, OG_DICT_FILE_EXT))
+  loaded_names <- stringr::str_replace(loaded,
+                                       pattern =paste0('^(','.*',')', OG_DICT_EXT, OG_DICT_FILE_EXT), "\\1")
+  added_dicts <- setdiff(loaded_names, core.df %>% dplyr::pull(name))
+
+  #TODO: extract description from user added
+  added_dicts.df <- tibble(name=added_dicts,desc="(not loaded)",type="added",loaded=FALSE)
+  dplyr::bind_rows(core.df,added_dicts.df)
 }
 
 #' @importFrom cachem cache_disk
@@ -170,6 +185,10 @@ og_dict_normalize <- function(x, threshold) {
   data_norm
 }
 
+og_list_dict_internal<-function() {
+  .pkgenv[["dicts"]]
+}
+
 og_dict_load_internal <- function(name, entry) {
   dict_file <- og_dict_genfilepath(name)
   if (file.exists(dict_file)) {
@@ -177,9 +196,13 @@ og_dict_load_internal <- function(name, entry) {
   } else {
     data(list=as.character(name), package = "opengender")
     ds <- eval(as.symbol(name))
+    comment(ds)<-entry[["desc"]]
     og_dict_import( x = ds , name = name )
   }
 }
+
+#' @importFrom dplyr bind_rows
+#' @importFrom tibble tibble
 
 og_dict_import <- function(x, name, renormalize = FALSE) {
   dict_file <- og_dict_genfilepath(name)
@@ -193,7 +216,6 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
     x <- readRDS(dict_file)
   } else {
     renormalize <- TRUE
-    comment(x)<-description
     saveRDS(x, file = dict_file)
   }
 
@@ -208,6 +230,19 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
 
   # insert in environment
   assign(og_dict_gennormname(name), ds_norm  ,  envir = .pkgenv)
+
+  #update metatdata
+  tmpcat <- .pkgenv[["dicts"]]
+  if (name %in% tmpcat[["name"]]) {
+    tmpcat[tmpcat[["name"]]==name,"description"] <- comment(ds_norm)
+    tmpcat[tmpcat[["name"]]==name,"loaded"]<- TRUE
+  } else {
+    tmpcat %<>%
+      dplyr::bind_rows(
+        tibble::tibble(name=name,desc=comment(ds_norm),type="added",loaded=TRUE)
+      )
+  }
+  .pkgenv[["dicts"]] <- tmpcat
 }
 
 og_dict_load_added <- function(name, entry) {
@@ -609,25 +644,8 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
 
 list_dict <- function() {
   res<- og_list_dict_internal() %>% dplyr::select(name,desc,type)
+  res
 }
-
-#' @importFrom stringr str_extract
-#' @importFrom tibble tibble
-#' @importFrom dplyr pull
-#' @importFrom dplyr bind_rows
-og_list_dict_internal<-function() {
-  core.df <-.pkgenv[["dicts"]][c("name", "desc", "type")]
-  load_dir <- options("opengender.datadir")[[1]]
-  loaded <- dir(path=load_dir, pattern =paste0('^.*', OG_DICT_EXT, OG_DICT_FILE_EXT))
-  loaded_names <- stringr::str_replace(loaded,
-                                       pattern =paste0('^(','.*',')', OG_DICT_EXT, OG_DICT_FILE_EXT), "\\1")
-  added_dicts <- setdiff(loaded_names, core.df %>% dplyr::pull(name))
-
-  #TODO: extract description from user added
-  added_dicts.df <- tibble(name=added_dicts,desc="user added",type="added")
-  dplyr::bind_rows(core.df,added_dicts.df)
-}
-
 
 #' Title
 #'
@@ -638,7 +656,6 @@ og_list_dict_internal<-function() {
 #' @examples [TODO]
 show_dict <- function(name) {
 
-  dict_entry <- og_dict_fetch_entry(name)
   load_dict(name)
   rv <- get(og_dict_gennormname(name), envir=.pkgenv)
   rv
@@ -681,8 +698,6 @@ load_dict <- function(name , force = FALSE) {
 manage_local_dict <- function(x, name = "local_1", description="a local dictionary",
                               delete=FALSE, force=FALSE) {
 
-  #TODO: embed description from user added
-
   if (delete) {
     if (!is.null(x) || !force) {
       stop("use x=NULL, force=TRUE, delete=TRUE for deletions")
@@ -703,9 +718,8 @@ manage_local_dict <- function(x, name = "local_1", description="a local dictiona
   comment(x) <- description
   og_dict_import(
     x = x ,
-    name = name,
-    description=description
-  )
+    name = name
+    )
 }
 
 #' Title

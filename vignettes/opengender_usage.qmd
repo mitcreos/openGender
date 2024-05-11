@@ -121,14 +121,15 @@ res %>%
 ```{r}
 
 clean_dicts()
+list_dict()
 data(kantro)
 bizarro <- kantro %>% 
   dplyr::mutate(gender= dplyr::case_match(gender, "M"~"F", "F"~"M"))
-manage_local_dict(bizarro,"bizarro")
+manage_local_dict(bizarro,name="bizarro")
 list_dict()
 show_dict("bizarro")
 
-show_dict("wgen2")
+debushow_dict("wgen2")
 
 
     

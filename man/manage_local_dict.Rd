@@ -2,9 +2,15 @@
 % Please edit documentation in R/opengender.R
 \name{manage_local_dict}
 \alias{manage_local_dict}
-\title{manage_local_dictionar}
+\title{manage_local_dictionary}
 \usage{
-manage_local_dict(x, name = "local_1", delete = FALSE, force = FALSE)
+manage_local_dict(
+  x,
+  name = "local_1",
+  description = "a local dictionary",
+  delete = FALSE,
+  force = FALSE
+)
 }
 \arguments{
 \item{name}{dictionary name}
@@ -17,7 +23,7 @@ manage_local_dict(x, name = "local_1", delete = FALSE, force = FALSE)
 logical success
 }
 \description{
-manage_local_dictionar
+manage_local_dictionary
 }
 \examples{
 [TODO]

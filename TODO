@@ -3,7 +3,7 @@ Data management:
    - [DONE] download framework
    - [DONE] API framework
    - [DONE] appdirs selection
-   - User added dictionaries
+   - [DONE] User added dictionaries
 
 Dependencies manage
   - [DONE] magrittr pipe
@@ -17,10 +17,9 @@ Test framework
 Estimation
  - [DONE] estimation framework
  - [DONE] mean and sd
- - Uncertainty estimation
-    - [DONE]  single bootstrap  and confidence intervals
-    - baseline sample size correction
-    - gender probability propagation
+  - [DONE]  single bootstrap  and confidence intervals
+  - double bootstrap baseline sample size correction -
+  - [DONE]gender probability propagation
 
 Normalization and matching
 - [DONE] Missing country

@@ -10,7 +10,7 @@ library(opengender)
 
 ```{r list-available}
 # show available dictionaries
-list_dict()
+list_dicts()
 ```
 
 ```{r show-dictionary}
@@ -119,20 +119,30 @@ res %>%
 ```
 
 ```{r}
-
-clean_dicts()
-list_dict()
+list_dicts()
+clean_dicts() 
+list_dicts()
 data(kantro)
 bizarro <- kantro %>% 
   dplyr::mutate(gender= dplyr::case_match(gender, "M"~"F", "F"~"M"))
-manage_local_dict(bizarro,name="bizarro")
-list_dict()
+comment(bizarro) <- "a bizarre dictionary"
+try(manage_local_dicts(bizarro,name="kantro"))
+manage_local_dicts(bizarro,name="bizarro", force=TRUE)
+list_dicts()
 show_dict("bizarro")
+```
 
-debushow_dict("wgen2")
+```         
+```
 
+\
 
-    
+"
+
+```{r}
+
+show_dict("wgen2")
+
 dict.df %>% 
   slice_head(n=1000) %>%
   dplyr::group_by(given,year) %>% 
@@ -163,10 +173,3 @@ dict.df %>%
 
 
 ```
-
-```         
-```
-
-\
-
-"

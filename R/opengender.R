@@ -234,7 +234,7 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   #update metatdata
   tmpcat <- .pkgenv[["dicts"]]
   if (name %in% tmpcat[["name"]]) {
-    tmpcat[tmpcat[["name"]]==name,"description"] <- comment(ds_norm)
+    tmpcat[tmpcat[["name"]]==name,"desc"] <- comment(ds_norm)
     tmpcat[tmpcat[["name"]]==name,"loaded"]<- TRUE
   } else {
     tmpcat %<>%
@@ -417,15 +417,16 @@ og_dict_process_wgen2 <- function(src) {
     dplyr::select(given=name,country=code,n=nobs,gender,) %>%
     dplyr::mutate(country = dplyr::case_match(country,
                                               "BU" ~ "MM",
-                                              "CB" ~ "KK",
+                                              "CB" ~ "KH",
                                               "KS" ~ "KR",
+                                              "??" ~ OG_DICT_NOCOUNTRY,
                                               .default = country),
                   gender = dplyr::na_if(gender,"?"),
                   n=as.integer(n))
 
   raw.df %>%
     dplyr::group_by(given) %>%
-    splyr::summarize(total =sum(n)) ->
+    dplyr::summarize(total =sum(n)) ->
     grand_totals.df
 
   raw.df %>% dplyr::anti_join(grand_totals.df %>%
@@ -642,8 +643,8 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
 #' @examples [TODO]
 #' @importFrom dplyr select
 
-list_dict <- function() {
-  res<- og_list_dict_internal() %>% dplyr::select(name,desc,type)
+list_dicts <- function() {
+  res<- og_list_dict_internal() %>% dplyr::select(name,desc,type,loaded)
   res
 }
 
@@ -685,7 +686,7 @@ load_dict <- function(name , force = FALSE) {
   return(rv)
 }
 
-#' manage_local_dictionary
+#' manage_local_dicts
 #'
 #' @param data tibble
 #' @param name dictionary name
@@ -695,7 +696,7 @@ load_dict <- function(name , force = FALSE) {
 #' @export
 #'
 #' @examples [TODO]
-manage_local_dict <- function(x, name = "local_1", description="a local dictionary",
+manage_local_dicts <- function(x, name = "local_1", description="a local dictionary",
                               delete=FALSE, force=FALSE) {
 
   if (delete) {
@@ -708,7 +709,7 @@ manage_local_dict <- function(x, name = "local_1", description="a local dictiona
 
   dict_entry <- og_dict_fetch_entry(name)
   if (length(dict_entry)!=0) {
-    if (dict_entry[["type"]]!="user") {
+    if (dict_entry[["type"]]!="added") {
       stop("Cannot update non-local dictionaries")
     } else if (!force) {
       stop("Dictionary exists, use force=TRUE to replace")
@@ -733,7 +734,7 @@ manage_local_dict <- function(x, name = "local_1", description="a local dictiona
 #' @examples [TODO]
 clean_dicts <- function(cleancache = TRUE,
                         cleannorm = TRUE,
-                        cleandata = TRUE) {
+                        cleandata = FALSE) {
   if (cleandata) {
     file.remove(dir(options()[["opengender.datadir"]],
                     full.names=TRUE,
@@ -744,6 +745,9 @@ clean_dicts <- function(cleancache = TRUE,
     file.remove(dir(options()[["opengender.datadir"]],
                     full.names=TRUE,
                     pattern = paste0('.*', OG_NORM_EXT, OG_DICT_FILE_EXT)))
+    loaded_dicts <- .pkgenv %>% ls() %>% grep("_norm",.,value=TRUE)
+    rm(list=loaded_dicts,envir=.pkgenv)
+    .pkgenv[["dicts"]] <- og_init_dictlist()
   }
   if (cleancache) {
     .pkgenv[["cacheobj"]]$reset()

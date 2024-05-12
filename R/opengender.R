@@ -7,8 +7,9 @@ OG_DICT_EXT <- "_dict"
 OG_NORM_EXT <- "_norm"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
+OG_DICT_ANYYEAR <- 10000
 OG_DICT_NOCOUNTRY <- "00"
-OG_DICT_ALLCOUNTRY <- "99"
+OG_DICT_ANYCOUNTRY <- "99"
 OG_DICT_NON <- 0
 
 # Package: Variables --------------------------------------------------------
@@ -90,9 +91,9 @@ og_find_cachedir <- function() {
   tmpd
 }
 
-#' @importFrom rappdirs user_cache_dir
+#' @importFrom rappdirs user_data_dir
 og_find_datadir <- function() {
-  tmpd <- rappdirs::user_cache_dir(appname = "opengender")
+  tmpd <- rappdirs::user_data_dir(appname = "opengender")
   if (!dir.exists(tmpd) && !dir.create(tmpd, recursive = TRUE)) {
     tmpd <- tmpdir(check = TRUE)
     tmpd <- file.path(tmpd,"opengender")
@@ -146,11 +147,11 @@ og_dict_normalize <- function(x, min_count_default=1) {
   }
 
   if (!"year" %in% colnames(x) ) {
-    data_norm %<>% dplyr::mutate( year = OG_DICT_NOYEAR)
+    data_norm %<>% dplyr::mutate( year = OG_DICT_ANYYEAR)
   }
 
   if (!"country" %in% colnames(x) ) {
-    data_norm %<>% dplyr::mutate(country = OG_DICT_NOCOUNTRY)
+    data_norm %<>% dplyr::mutate(country = OG_DICT_ANYCOUNTRY)
   }
 
   # clean columns: given, country, year, pr_f, N
@@ -175,21 +176,56 @@ og_dict_normalize <- function(x, min_count_default=1) {
     # ensure dictionary has full range of gender codes
   )
 
-  # reaggregation by given
-
+  # aggregate multiple observations with same keys
   data_norm %<>%
     na.omit() %>%
-    dplyr::group_by(given,year,country) %>%
-    dplyr::mutate(ng = sum(n)) %>%
-    dplyr::group_by(given,gender, year,country) %>%
-    dplyr::mutate(pr = n/ng) %>%
-    dplyr::ungroup() %>%
-    dplyr::select(given,gender,year,country,pr,n) %>%
+    dplyr::group_by(given,gender, year,country ) %>%
+    dplyr::summarize(n = sum(n), .groups="drop")
+
+  agg_all <- NULL
+  agg_geo <- NULL
+  agg_time <- NULL
+
+  ## add aggregates
+  # if either year or country column
+  if (("year" %in% colnames(x)) ||
+        ("country" %in% colnames(x)))  {
+
+   data_norm %>%
+    dplyr::group_by(given,gender) %>%
+    dplyr::summarize(n=sum(n), .groups="drop") %>%
+    dplyr::mutate(year=OG_DICT_ANYYEAR,
+                  country=OG_DICT_ANYCOUNTRY) -> agg_all
+  }
+
+  if (("country" %in% colnames(x)))  {
+    data_norm %>%
+    dplyr::group_by(given,gender,year) %>%
+    dplyr::summarize(n=sum(n), .groups="drop") %>%
+    dplyr::mutate(country=OG_DICT_ANYCOUNTRY) -> agg_geo
+  }
+
+  if (("year" %in% colnames(x)))  {
+   data_norm %>%
+    dplyr::group_by(given,gender,country) %>%
+    dplyr::summarize(n=sum(n), .groups="drop") %>%
+    dplyr::mutate(year=OG_DICT_ANYYEAR) -> agg_time
+  }
+
+  data_norm <-
+    dplyr::bind_rows(data_norm,agg_all, agg_geo, agg_time) %>%
     dplyr::distinct() %>%
-    tidyr::pivot_wider(names_from="gender", names_prefix="pr_", values_from="pr", values_fill=0) %>%
     dplyr::arrange(given) %>%
+    tidyr::pivot_wider(names_from="gender",
+                       names_prefix="",
+                       values_from="n",
+                       values_fill=0) %>%
     dplyr::filter(given!="[DUMMY]") %>%
+    dplyr::mutate(n= F + M + O,
+                  across(c(F,M,O) , ~ .x /n , .names = "pr_{.col}" )
+    ) %>%
     dplyr::select(given,year,country,pr_F,pr_M,pr_O,n)
+
 
   # fill in missing N
   if (!"n" %in% colnames(x) ) {
@@ -379,7 +415,7 @@ og_clean_year<-function(x,ymin=1000,ymax=2050) {
 #' @importFrom tidyr replace_na
 #' @importFrom dplyr case_match
 og_clean_country <- function(x) {
-  codes <- c(iso3166[["country_2d"]],OG_DICT_NOCOUNTRY)
+  codes <- c(iso3166[["country_2d"]],OG_DICT_NOCOUNTRY,OG_DICT_ANYCOUNTRY)
   rv <- as.character(x)
   mismatch <- setdiff(unique(rv),codes)
   if (length(mismatch)>0) {
@@ -469,7 +505,7 @@ og_api_call <- function(given, country, year, apikey, host, service) {
   }
   if (!"year" %in% colnames(res)) {
     if (missing(year)) {
-      country_res <- OG_DICT_NOYEAR
+      year_res <- OG_DICT_NOYEAR
     } else {
       year_res <- year
     }

@@ -17,8 +17,9 @@ Test framework
 Estimation
  - [DONE] estimation framework
  - [DONE] mean and sd
-  - [DONE]  single bootstrap  and confidence intervals
+ - [DONE]  single bootstrap  and confidence intervals
   - double bootstrap baseline sample size correction -
+  - coding & imputation: static code (threshold), probability imputation, probabibility, single/multiple
   - [DONE]gender probability propagation
 
 Normalization and matching
@@ -28,7 +29,8 @@ Normalization and matching
 - [DONE] Name cleaning
 - [DONE] Fuzzy matching
 - [DONE] Thresholding
-* Country aggregation
+* ANY code display in show_dicts
+- [DONE]  Country aggregation
 - Year interpolation
 
 Data

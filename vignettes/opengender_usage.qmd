@@ -81,7 +81,6 @@ names_sample.df %>%
               col_map=c(given = "firstname") ) -> res
 
 res
-
 ```
 
 ```{r point-estimation}
@@ -104,7 +103,6 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
 
 ```{r estimates-with-uncertainty}
 
-
 res %>% dplyr::select("og_details") %>%
   gender_estimate(simplify_output="scalar", estimates=c("mean","sd"))
 
@@ -119,7 +117,6 @@ res %>%
 res %>% dplyr::select("og_details") %>%
   dplyr::slice_sample(n=100) %>%
   gender_estimate()
-
 ```
 
 ```{r user-dict}
@@ -139,211 +136,13 @@ show_dict("bizarro")
 ```         
 ```
 
-\
-
-"
-
-```{r}
+```{r wgen-dictionary}
 
 show_dict("wgen2")
 
+# match to aggregate of countries
 names_sample.df %>% 
   add_gender_predictions(
               dicts = "wgen2",
               col_map=c(given = "firstname") ) 
-```
-
-```{r}
- 
- OG_DICT_NOYEAR <- 3000
- OG_DICT_ANYYEAR <- 10000
- OG_DICT_NOCOUNTRY <- "00"
- OG_DICT_ANYCOUNTRY <- "99"
-
-  data_norm <- dn
-  
-  
-  
-
-  
-  # aggregate multiple observations with same keys
-  data_norm %<>%
-    na.omit() %>%
-    dplyr::group_by(given,gender, year,country ) %>%
-    dplyr::summarize(n = sum(n), .groups="drop")
-  
-  
-  
-  
-  
-  # aggregate to 
-    data_norm %>%
-    dplyr::group_by(given,gender) %>%
-    dplyr::summarize(
-           sum_F = sum(n[which(gender=="F")]),
-           sum_M = sum(n[which(gender=="M")]),
-           sum_O = sum(n[which(gender=="O")]),
-                     .groups="drop")
-
-  
-                     
-                     .groups="drop_all" ) 
-  
-  
-  
-  %>%
-    dplyr::group_by(given,gender, year,country) %>%
-    dplyr::summarize(pr = n/ng, .groups= "drop_last ") %>%
-    dplyr::ungroup() 
-  
-  
-  
-  %>%
-    dplyr::select(given,gender,year,country,pr,n) %>%
-    dplyr::distinct() %>%
-    tidyr::pivot_wider(names_from="gender", names_prefix="pr_", values_from="pr", values_fill=0) %>%
-    dplyr::arrange(given) %>%
-    dplyr::filter(given!="[DUMMY]") %>%
-    dplyr::select(given,year,country,pr_F,pr_M,pr_O,n)
-  
-  ict.df %>% 
-  slice_head(n=1000) %>%
-  dplyr::group_by(given,year) %>% 
-  dplyr::summarise(across(starts_with("pr_"), ~ weighted.mean(.x, w=n)),
-                   n=sum(n),
-                   .groups="drop_last") %>%
-  dplyr::ungroup() %>%
-  mutate(country="ALL")
-
-dict.df %>% 
-  slice_head(n=1000) %>%
-  dplyr::group_by(given,country) %>% 
-  dplyr::summarise(across(starts_with("pr_"), ~ weighted.mean(.x, w=n)),
-                   n=sum(n),
-                   .groups="drop_last") %>%
-  dplyr::ungroup() %>%
-  mutate(year="ALL")
-
-dict.df %>% 
-  slice_head(n=1000) %>%
-  dplyr::group_by(given) %>% 
-  dplyr::summarise(across(starts_with("pr_"), ~ weighted.mean(.x, w=n)),
-                   n=sum(n),
-                   .groups="drop_last") %>%
-  dplyr::ungroup() %>%
-  mutate(year="ALL") 
-
-
-  dnt <- dn %>% dplyr::slice_head(n=1000)
-dnt %>% dplyr::pull(gender) %>% unique
-
-dnt %>% 
-  dplyr::mutate(dgender = 
-                  factor(gender, levels=c("F","M","O"), labels=c("F","M","O"))) %>% 
-  dplyr::group_by(given,country) %>% 
-  tidyr::pivot_wider( values_from=n, id_cols=dgender)
-  
-  dplyr::summarise(n=sum(n) , .groups="drop")
-
- data_norm %>%
-    dplyr::group_by(given,country,year) %>%
-    dplyr::summarize(
-           sum_F = sum(n[which(gender=="F")]),
-           sum_M = sum(n[which(gender=="M")]),
-           sum_O = sum(n[which(gender=="O")]),
-                     .groups="drop") 
- 
- 
-  
-
-  data_norm %>%
-    dplyr::group_by(given,year) %>%
-    dplyr::summarize(
-           sum_F = sum(n[which(gender=="F")]),
-           sum_M = sum(n[which(gender=="M")]),
-           sum_O = sum(n[which(gender=="O")]),
-                     .groups="drop") %>%
-    dplyr::mutate(country=OG_DICT_ALLCOUNTRIES)
-  
-  data_norm %>%
-    dplyr::group_by(given,country) %>%
-    dplyr::summarize(
-           sum_F = sum(n[which(gender=="F")]),
-           sum_M = sum(n[which(gender=="M")]),
-           sum_O = sum(n[which(gender=="O")]),
-                     .groups="drop") %>%
-    dplyr::mutate(year=OG_DICT_ALLYEARS)
-  
-    data_norm %>%
-    dplyr::group_by(given) %>%
-    dplyr::summarize(
-           sum_F = sum(n[which(gender=="F")]),
-           sum_M = sum(n[which(gender=="M")]),
-           sum_O = sum(n[which(gender=="O")]),
-                     .groups="drop") %>%
-    dplyr::mutate(year=OG_DICT_ALLYEARS,country=OG_DICT_ALLCOUNTRIES)
-    
-
-
-  data_norm %
-```
-
-```{r}
- data_norm <- dn
-  
-  
- 
-# aggregate multiple observations with same keys
-  data_norm %<>%
-    na.omit() %>%
-    dplyr::group_by(given,gender, year,country ) %>%
-    dplyr::summarize(n = sum(n), .groups="drop")
-agg_all <- NULL
-agg_geo <- NULL
-agg_time <- NULL 
-
-## add aggregates
-# if has either year or country column 
-  data_norm %>%
-    dplyr::group_by(given,gender) %>%
-    dplyr::summarize(n=sum(n), .groups="drop") %>%
-    dplyr::mutate(year=OG_DICT_ANYYEAR,
-                  country=OG_DICT_ANYCOUNTRY) -> agg_all
- 
-# if both year and country columns
-  data_norm %>%
-    dplyr::group_by(given,gender,year) %>%
-    dplyr::summarize(n=sum(n), .groups="drop") %>%
-    dplyr::mutate(country=OG_DICT_ANYCOUNTRY) -> agg_geo
- 
-# if year only
-  data_norm %>%
-    dplyr::group_by(given,gender,country) %>%
-    dplyr::summarize(n=sum(n), .groups="drop") %>%
-    dplyr::mutate(year=OG_DICT_ANYYEAR) -> agg_time
-  
-data_all_wide <- 
-  dplyr::bind_rows(data_norm,agg_all, agg_geo, agg_time) %>%
-  dplyr::distinct() %>%
-  dplyr::arrange(given) %>%
-  tidyr::pivot_wider(names_from="gender",
-                       names_prefix="", 
-                       values_from="n", 
-                       values_fill=0) %>%
-  dplyr::filter(given!="[DUMMY]") %>%
-  dplyr::mutate(n= F + M + O,
-        across(c(F,M,O) , ~ .x /n , .names = "pr_{.col}" )
-        ) %>%
-  dplyr::select(given,year,country,pr_F,pr_M,pr_O,n)
-
-  
-
-
-
-
-
-
-
-
-  
 ```

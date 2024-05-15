@@ -24,5 +24,5 @@ Imports:
     rsample
 VignetteBuilder: knitr
 Depends: 
-    R (>= 4)
+    R (>= 4.0)
 LazyData: true

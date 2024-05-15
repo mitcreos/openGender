@@ -415,7 +415,7 @@ og_clean_year<-function(x,ymin=1000,ymax=2050) {
 #' @importFrom tidyr replace_na
 #' @importFrom dplyr case_match
 og_clean_country <- function(x) {
-  codes <- c(iso3166[["country_2d"]],OG_DICT_NOCOUNTRY,OG_DICT_ANYCOUNTRY)
+  codes <- c(opengender::iso3166[["country_2d"]],OG_DICT_NOCOUNTRY,OG_DICT_ANYCOUNTRY)
   rv <- as.character(x)
   mismatch <- setdiff(unique(rv),codes)
   if (length(mismatch)>0) {

@@ -5,3 +5,12 @@ x <- c('   Raphaël^-#    Mcartan Fair    3Ждан 刘   ', "K8tlyn", 'StregA' 
 
 
 ```
+
+```{r}
+tmp <- c("M","M","F","M","O")
+flevels<-c("F","M","O")
+ftmp <- as.factor(tmp)
+ftmp
+ftmp2 <- factor(tmp, levels=flevels)
+ftmp2
+```

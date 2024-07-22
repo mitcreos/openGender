@@ -11,6 +11,7 @@ OG_DICT_ANYYEAR <- 10000
 OG_DICT_NOCOUNTRY <- "00"
 OG_DICT_ANYCOUNTRY <- "99"
 OG_DICT_NON <- 0
+OG_GENDER_LEVELS <- c("F","M","O")
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -950,7 +951,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
   match_cum.df %<>%
     dplyr::mutate(og_pr_F=pr_F) %>%
-    tidyr::nest(og_details= c(pr_F,pr_M,pr_M, n,fuzzy_dist)) %>%
+    tidyr::nest(og_details= c(pr_F,pr_M,pr_O, n,fuzzy_dist)) %>%
     dplyr::select( {{cmp_nm}}, og_details, og_pr_F)
 
   byspec <- "given_input"; names(byspec) <- cmp_g

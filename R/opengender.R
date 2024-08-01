@@ -54,6 +54,7 @@ og_init_dictlist<-function() {
   core.df <- tibble::tribble(
     ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri,
     "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352",
+    "ssa","cumulative social security admin",2024,"external","ssa","https://www.ssa.gov/oact/babynames/names.zip",
     "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip",
     "genderize",  "genderize", 1,  "api", "genderize", "https:://api.genderize.io"
   ) %>%
@@ -435,13 +436,10 @@ og_clean_country <- function(x) {
 
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
 
-#' @importFrom dplyr group_by
 #' @importFrom dplyr select
 #' @importFrom dplyr mutate
 #' @importFrom dplyr case_match
 #' @importFrom dplyr na_if
-#' @importFrom dplyr summarize
-#' @importFrom dplyr anti_join
 #' @importFrom readr read_tsv
 #' @importFrom readr col_character
 #' @importFrom readr col_integer
@@ -481,6 +479,55 @@ og_dict_process_wgen2 <- function(src) {
 
   attr(raw.df,"min_obs_threshhold") <- min_obs
   comment(raw.df) <- "world gender dictionary"
+  raw.df
+}
+
+
+#' @importFrom dplyr select
+#' @importFrom dplyr mutate
+#' @importFrom dplyr na_if
+#' @importFrom purrr map
+#' @importFrom purrr list_rbind
+#' @importFrom stringr str_extract
+#' @importFrom utils unzip
+#' @importFrom readr read_csv
+#' @importFrom readr col_character
+#' @importFrom readr col_integer
+og_dict_process_ssa <- function(src) {
+
+  # Coding notes:
+  #   After expert inspection of data, applied coding rules:
+  #   -
+
+  min_obs <- 10
+
+  filesls.df <-
+    utils::unzip(zipfile=src, list=TRUE, unzip=getOption("unzip"))
+
+
+  files.ls<- filesls.df %>%
+    dplyr::filter(stringr::str_starts(Name,"yob")) %>%
+    dplyr::pull(Name)
+
+  read_ssa_single <-function(fn) {
+    print(fn)
+    fy<- stringr::str_extract(fn, 'yob(\\d+)\\.txt', group=1)
+    df<-readr::read_csv(unz(src,filename=fn),
+                        col_names= c("given","gender","n"),
+                        col_types= c(
+                          given = readr::col_character(),
+                          gender = readr::col_character(),
+                          n = readr::col_integer()
+                        )) %>% dplyr::mutate(year=fy)
+    df
+  }
+
+  raw.df <- purrr::map(files.ls, read_ssa_single) %>%
+    purrr::list_rbind() %>%
+    dplyr::mutate(country="US")
+
+  attr(raw.df,"min_obs_threshhold") <- min_obs
+  comment(raw.df) <- "US social security admin baby names"
   raw.df
 }
 

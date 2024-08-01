@@ -33,7 +33,8 @@ Imports:
     memoise,
     rappdirs,
     readr,
-    cachem
+    cachem,
+    utils
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.0)

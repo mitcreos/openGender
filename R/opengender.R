@@ -155,7 +155,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
     data_norm %<>% dplyr::mutate(country = OG_DICT_ANYCOUNTRY)
   }
 
-  # clean columns: given, country, year, pr_f, N
+  # clean columns: given, country, year, gender, N
 
   data_norm %<>% dplyr::mutate(given=og_clean_given(given))
   data_norm %<>% dplyr::mutate(year=og_clean_year(year))
@@ -359,9 +359,11 @@ og_dict_combine <- function(dicts,
   dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
 
  res <- dc.df %>%
-    dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n) %>%
+    dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n,
+                  n_O = pr_O*n) %>%
     dplyr::group_by(given,year,country) %>%
-    dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n) %>%
+    dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n,
+                     pr_O=sum(n_O)/n) %>%
     ungroup() %>%
     filter(n>=missing_n_weight)
 }
@@ -401,7 +403,8 @@ og_clean_gender <- function(x) {
       c("f","woman","women","female") ~ "F",
       NA ~ NA,
       .default = "O"
-    )
+    ) %>%
+    factor(levels=OG_GENDER_LEVELS)
 }
 
 #' @importFrom tidyr replace_na

@@ -34,7 +34,6 @@ Imports:
     rappdirs,
     readr,
     cachem
-    
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.0)

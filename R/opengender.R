@@ -510,7 +510,6 @@ og_dict_process_ssa <- function(src) {
     dplyr::pull(Name)
 
   read_ssa_single <-function(fn) {
-    print(fn)
     fy<- stringr::str_extract(fn, 'yob(\\d+)\\.txt', group=1)
     df<-readr::read_csv(unz(src,filename=fn),
                         col_names= c("given","gender","n"),

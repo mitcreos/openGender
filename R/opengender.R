@@ -1027,15 +1027,16 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
       ) %>%
       filter(!is.na(year_l) | !is.na(year_u))
 
+    if (nrow(match.cur)>0) {
+       match_cur.df %<>%
+        rowwise() %>%
+        mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%
+        ungroup() %>%
+        select(-year_l,-year_u, -x_l, -x_u) %>%
+        unnest(x_int)
 
-    match_cur.df %<>%
-      rowwise() %>%
-      mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%
-      ungroup() %>%
-      select(-year_l,-year_u, -x_l, -x_u) %>%
-      unnest(x_int)
-
-    match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+      match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+    }
   }
 
   # TODO: API retrieval of remainder

@@ -146,7 +146,7 @@ names_sample.df %>%
               dicts = "wgen2",
               col_map=c(given = "firstname") ) 
 ```
-```{r matching-over-time}
+```{r matching-over-time-samp}
 load_dict("ssa")
 show_dict("ssa") -> ssa.df
 ssa.df %>% filter(given=="leslie") %>%
@@ -157,14 +157,18 @@ ssa.df %>% pull(given) %>% unique() %>% sample(500,replace=TRUE) -> sampleg
 ssa.df %>% pull(year) %>% unique() %>% sample(500,replace=TRUE) -> samplet
 
 mixedyear.df <- tibble(given=sampleg,year=samplet,country='US')
+mixedyear.df[1,"year"] <- 10000
+```
+
+```{r matching-over-time}
 
 left_join(mixedyear.df,ssa.df %>% filter(year<10000),
-          by = join_by(given,country,closest(year<=year))) %>%
+          by = join_by(given,country,closest(year>=year))) %>%
       rename(year=year.x, year_l=year.y) %>%
       nest(x_l=c(-given,-starts_with("year"),-country)) %>% 
   bind_cols(
     left_join(mixedyear.df,ssa.df %>% filter(year<10000),
-          by = join_by(given,country,closest(year>=year))) %>%
+          by = join_by(given,country,closest(year<=year))) %>%
       rename(year=year.x, year_u=year.y) %>%
       nest(x_u=c(-given,-starts_with("year"),-country)) %>% 
       select(year_u, x_u)
@@ -178,22 +182,31 @@ year_interp<- function( y, y_l, y_u, df_l, df_u) {
     rv <- df_u
   } else if(is.na(y_u)) {
     rv <- df_l
+  } else if (y_l == y_u) {
+    rv <- df_l
   } else {
     dft <- dplyr::bind_rows(df_l,df_u)
     rv <- dft[1,] + (((y-y_l)/(y_u-y_l)) *(dft[2,]-dft[1,]))    
     rv <- rv %>% mutate(n=as.integer(round(n)))
   }
-  return(rv)
+  return(tibble::as_tibble(rv))
 }
 
 debug(year_interp)
-year_interp( y = bounded_matches.df[[114,"year"]], 
-            y_l = bounded_matches.df[[114,"year_l"]],
-            y_u = bounded_matches.df[[114,"year_u"]],
-            df_l = bounded_matches.df[[114,"x_l"]],
-            df_u = bounded_matches.df[[114,"x_u"]]
+yi<-year_interp( y = bounded_matches.df[[154,"year"]], 
+            y_l = bounded_matches.df[[154,"year_l"]],
+            y_u = bounded_matches.df[[154,"year_u"]],
+            df_l = bounded_matches.df[[154,"x_l"]],
+            df_u = bounded_matches.df[[154,"x_u"]]
             )
 
+bounded_matches.df %<>% 
+  rowwise() %>%
+  mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%
+  ungroup()
+
+
 bounded_matches.df
+View(bounded_matches.df)
 ```
 

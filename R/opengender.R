@@ -179,6 +179,8 @@ og_dict_normalize <- function(x, min_count_default=1) {
   )
 
   # aggregate multiple observations with same keys
+  # to support matches when country, year, is not supplied
+
   data_norm %<>%
     na.omit() %>%
     dplyr::group_by(given,gender, year,country ) %>%
@@ -967,6 +969,11 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
   ### match to static dictionaries
 
   # full match
+  # Note:
+  #  - incomplete match to country - accomplished through pre-processing to
+  #         missing country in og_dict_normalize
+  #  - fuzzy match to names -- accomplished by augmenting x_norm.df with fuzzy-matched
+  #     names, above, before joining to dictionary
 
   match_cur.df <-
     x_norm.df %>%
@@ -976,27 +983,78 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
   match_cum.df <- match_cur.df
 
-  # TODO: incomplete match to country
-
-  if(FALSE) {
-  unmatched.df <-
-    dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
-
-    # join to unmatched
-   match_cur.df <- unmatched.df %>%
-     dplyr::inner_join(dicts.tbl,
-                       by = all_ind
-     )
-
-   match_cum.df %<>% dplyr::bind_rows(match_cur.df)
-  }
 
   # TODO: year interpolation
 
+  if(year_adjust) {
+    ind_ny <- setdiff(all_ind,"year")
+
+    year_interp<- function( y, y_l, y_u, df_l, df_u) {
+      if (is.na(y_l) && is.na(y_u)) {
+        rv <- tibble()
+      } else if(is.na(y_l)) {
+        rv <- df_u
+      } else if(is.na(y_u)) {
+        rv <- df_l
+      } else if (y_l == y_u) {
+        rv <- df_l
+      } else {
+        dft <- dplyr::bind_rows(df_l,df_u)
+        rv <- dft[1,] + (((y-y_l)/(y_u-y_l)) *(dft[2,]-dft[1,]))
+        rv <- rv %>% mutate(n=as.integer(round(n)))
+      }
+      return(rv)
+    }
+
+    unmatched.df <-
+      dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
+
+    # join to unmatched
+    match_cur.df <-
+    left_join(unmatched.df,
+              dicts.tbl %>% filter(year< OG_DICT_ANYYEAR),
+              by = join_by( !!!{ind_ny}
+                            , closest(year>=year))) %>%
+      rename(year=year.x, year_l=year.y) %>%
+      nest(x_l=c(-starts_with("year"),-{{ind_ny}})) %>%
+      bind_cols(
+        left_join(unmatched.df,
+                  dicts.tbl  %>% filter(year< OG_DICT_ANYYEAR),
+                  by = join_by(!!!{ind_ny},closest(year<=year))) %>%
+        rename(year=year.x, year_u=year.y) %>%
+        nest(x_u=c(-starts_with("year"),-{{ind_ny}})) %>%
+        select(year_u, x_u)
+      ) %>%
+      filter(!is.na(year_l) | !is.na(year_u))
+
+
+    match_cur.df %<>%
+      rowwise() %>%
+      mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%
+      ungroup() %>%
+      select(-year_l,-year_u, -x_l, -x_u) %>%
+      unnest(x_int)
+
+    match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+  }
+
   # TODO: API retrieval of remainder
 
+   if(FALSE) {
+    unmatched.df <-
+      dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
 
-  ### combine results and rejoin to input
+    # join to unmatched
+    match_cur.df <- unmatched.df %>%
+      dplyr::inner_join(dicts.tbl,
+                        by = all_ind
+      )
+
+    match_cum.df %<>% dplyr::bind_rows(match_cur.df)
+  }
+
+
+  ### rejoin to input
 
   match_cum.df %<>%
     dplyr::mutate(og_pr_F=pr_F) %>%

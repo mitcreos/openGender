@@ -8,7 +8,6 @@ Data management:
 Dependencies manage
   - [DONE] magrittr pipe
   - [DONE] roxygen
-  - purrr insistent, etc
 
 Test framework
 - corner cases
@@ -18,9 +17,9 @@ Estimation
  - [DONE] estimation framework
  - [DONE] mean and sd
  - [DONE]  single bootstrap  and confidence intervals
-  - double bootstrap baseline sample size correction -
-  - coding & imputation: static code (threshold), probability imputation, probabibility, single/multiple
-  - [DONE]gender probability propagation
+ - [DONE]gender probability propagation
+ - double bootstrap baseline sample size correction -
+  - coding & imputation: static code (threshold), sampling;  imputation
 
 Normalization and matching
 - [DONE] Missing country
@@ -29,15 +28,16 @@ Normalization and matching
 - [DONE] Name cleaning
 - [DONE] Fuzzy matching
 - [DONE] Thresholding
-* ANY code display in show_dicts
 - [DONE]  Country aggregation
-- Year interpolation
+- [DONE] Year interpolation
+- ANY code display in show_dicts
+
 
 Data
 - [DONE] Kantrowicz
 - [DONE] World Names
+- [DONE] SSA
 - IPUMS
-- SSA
 - NAP
 - check against ISO codes package
 - Wikidata

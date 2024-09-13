@@ -158,21 +158,28 @@ ssa.df %>% pull(year) %>% unique() %>% sample(500,replace=TRUE) -> samplet
 
 mixedyear.df <- tibble(given=sampleg,year=samplet,country='US')
 mixedyear.df[1,"year"] <- 10000
+mixedyear.df[2,"given"] <- "****"
 ```
 
 ```{r matching-over-time}
 
+  all_ind <- c("given","year","country")
+  ind_ny <- setdiff(all_ind,"year")
+
+
 left_join(mixedyear.df,ssa.df %>% filter(year<10000),
-          by = join_by(given,country,closest(year>=year))) %>%
+          by = join_by( !!!{ind_ny}
+            , closest(year>=year))) %>%
       rename(year=year.x, year_l=year.y) %>%
-      nest(x_l=c(-given,-starts_with("year"),-country)) %>% 
+      nest(x_l=c(-starts_with("year"),-{{ind_ny}})) %>% 
   bind_cols(
     left_join(mixedyear.df,ssa.df %>% filter(year<10000),
-          by = join_by(given,country,closest(year<=year))) %>%
+          by = join_by(!!!{ind_ny},closest(year<=year))) %>%
       rename(year=year.x, year_u=year.y) %>%
-      nest(x_u=c(-given,-starts_with("year"),-country)) %>% 
+      nest(x_u=c(-starts_with("year"),-{{ind_ny}})) %>% 
       select(year_u, x_u)
-  ) -> bounded_matches.df
+  ) %>% 
+  filter(!is.na(year_l) | !is.na(year_u)) -> bounded_matches.df
 
 
 year_interp<- function( y, y_l, y_u, df_l, df_u) {
@@ -189,10 +196,10 @@ year_interp<- function( y, y_l, y_u, df_l, df_u) {
     rv <- dft[1,] + (((y-y_l)/(y_u-y_l)) *(dft[2,]-dft[1,]))    
     rv <- rv %>% mutate(n=as.integer(round(n)))
   }
-  return(tibble::as_tibble(rv))
+  return(rv)
 }
 
-debug(year_interp)
+#debug(year_interp)
 yi<-year_interp( y = bounded_matches.df[[154,"year"]], 
             y_l = bounded_matches.df[[154,"year_l"]],
             y_u = bounded_matches.df[[154,"year_u"]],

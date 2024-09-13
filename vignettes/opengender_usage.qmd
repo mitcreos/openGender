@@ -153,15 +153,17 @@ ssa.df %>% filter(given=="leslie") %>%
   filter(year<10000) %>%
   ggplot(aes(x=year,y=pr_F)) + geom_point()
 
-ssa.df %>% pull(given) %>% unique() %>% sample(500,replace=TRUE) -> sampleg
+ssa.df %>% filter(year < 10000, n>50) %>% pull(given) %>% unique() %>% sample(500,replace=TRUE) -> sampleg
 ssa.df %>% pull(year) %>% unique() %>% sample(500,replace=TRUE) -> samplet
 
-mixedyear.df <- tibble(given=sampleg,year=samplet,country='US')
+mixedyear.df <- tibble(given=sampleg,year=samplet)
 
-mixedyear.df  %>% 
+mixedyear.df  %<>% 
   add_gender_predictions(
               dicts = "ssa",
               col_map=c(given = "given") ) 
+
+mixedyear.df
 
 ```
 

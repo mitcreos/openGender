@@ -31,6 +31,9 @@ Normalization and matching
 - [DONE] Thresholding
 - [DONE]  Country aggregation
 - [DONE] Year interpolation
+- optimize normalization for single dict -- avoid unnecc renorm
+- memory/perf profiling for add_gender_predictions
+- reorder size thresholding, fuzzy match, year agg, thresholding
 - exact and fuzzy linkage
 - extend for multiple categories (race)
 - ANY code display in show_dicts

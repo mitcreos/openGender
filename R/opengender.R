@@ -886,6 +886,8 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
   cmp <- col_map[col_map!=""]
   cmp <- cmp[names(cmp) %in% all_ind]
 
+  x %<>% select(!starts_with("og_"))
+
   if (!"given" %in% names(cmp)) {
     stop("must supply a column of given names")
   }
@@ -1011,7 +1013,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
     # join to unmatched
     match_cur.df <-
-    left_join(unmatched.df,
+      left_join(unmatched.df,
               dicts.tbl %>% filter(year< OG_DICT_ANYYEAR),
               by = join_by( !!!{ind_ny}
                             , closest(year>=year))) %>%
@@ -1027,7 +1029,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
       ) %>%
       filter(!is.na(year_l) | !is.na(year_u))
 
-    if (nrow(match.cur)>0) {
+    if (nrow(match_cur.df)>0) {
        match_cur.df %<>%
         rowwise() %>%
         mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%

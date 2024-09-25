@@ -5,7 +5,7 @@
 \alias{iso3166}
 \title{ISO 3166 country codes}
 \format{
-\subsection{\code{iso3167}}{
+\subsection{\code{iso3166}}{
 
 A data frame 252 observation and 3 columns
 \describe{

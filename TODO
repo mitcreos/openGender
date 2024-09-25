@@ -21,6 +21,7 @@ Estimation
  - [DONE]gender probability propagation
  - double bootstrap baseline sample size correction -
  - coding & imputation: static code (threshold), sampling;  imputation
+ - gender mean all NA bug
 
 Normalization and matching
 - [DONE] Missing country

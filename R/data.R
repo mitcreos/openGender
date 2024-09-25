@@ -2,7 +2,7 @@
 #'
 #' Country codes and names
 #'
-#' @format ## `iso3167`
+#' @format ## `iso3166`
 #' A data frame 252 observation and 3 columns
 #' \describe{
 #'   \item{country_name}{Country name}

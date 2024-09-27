@@ -52,11 +52,11 @@ OG_GENDER_LEVELS <- c("F","M","O")
 #' @importFrom dplyr mutate
 og_init_dictlist<-function() {
   core.df <- tibble::tribble(
-    ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri,
-    "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352",
-    "ssa","cumulative social security admin",2024,"external","ssa","https://www.ssa.gov/oact/babynames/names.zip",
-    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip",
-    "genderize",  "genderize", 1,  "api", "genderize", "https:://api.genderize.io"
+    ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri, ~domain
+    "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352", "gender",
+    "ssa","cumulative social security admin",2024,"external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
+    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
+    "genderize",  "genderize", 1,  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
 
@@ -884,6 +884,22 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
                           fuzzy_match = TRUE,
                           year_adjust = TRUE) {
 
+    add_category_predictions(x=x, col_map = col_map,
+                             dicts =dicts, save_api_results=save_api_results,
+                             fuzzy_match = fuzzy_match, year_adjust=year_adjust,
+                             dict_domain = "gender",
+                             domain_levels = OG_GENDER_LEVELS )
+
+}
+
+add_category_predictions <- function(x, col_map = c(given="given", year="", country=""),
+                                   dicts = c("kantro"),
+                                   save_api_results = TRUE,
+                                   fuzzy_match = TRUE,
+                                   year_adjust = TRUE,
+                                   dict_domain = NULL,
+                                   domain_levels = NULL ) {
+
   all_ind <- c("given","year","country")
   cmp <- col_map[col_map!=""]
   cmp <- cmp[names(cmp) %in% all_ind]
@@ -988,7 +1004,6 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
   match_cum.df <- match_cur.df
 
 
-  # TODO: year interpolation
 
   if(year_adjust) {
     ind_ny <- setdiff(all_ind,"year")

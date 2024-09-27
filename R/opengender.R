@@ -216,6 +216,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
     dplyr::mutate(year=OG_DICT_ANYYEAR) -> agg_time
   }
 
+  #TODO: OG_GENDER_LEVELS
   data_norm <-
     dplyr::bind_rows(data_norm,agg_all, agg_geo, agg_time) %>%
     dplyr::distinct() %>%
@@ -358,6 +359,7 @@ og_dict_load_api <- function(name, entry) {
 og_dict_combine <- function(dicts,
               missing_n_weight = options("opengender.dict.minsize")[[1]]
               ) {
+  #TODO: OG_GENDER_LEVELS
   dc.df <- purrr::map(dicts, show_dict) %>% list_rbind()
   dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
 
@@ -402,10 +404,10 @@ og_clean_gender <- function(x) {
     stringr::str_squish() %>%
     stringr::str_to_lower() %>%
     case_match(
-      c("m","man","men","male") ~ "M",
-      c("f","woman","women","female") ~ "F",
+      c("f","woman","women","female") ~ OG_GENDER_LEVELS[[1]],
+      c("m","man","men","male") ~ OG_GENDER_LEVELS[[2]],
       NA ~ NA,
-      .default = "O"
+      .default = OG_GENDER_LEVELS[[3]]
     ) %>%
     factor(levels=OG_GENDER_LEVELS)
 }
@@ -1058,6 +1060,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 
 
   ### rejoin to input
+  #TODO: OG_GENDER_LEVELS
 
   match_cum.df %<>%
     dplyr::mutate(og_pr_F=pr_F) %>%
@@ -1119,6 +1122,8 @@ gender_estimate <- function(x,  simplify_output = "tidy",
   termlist <- c("per_F","per_M","per_O")
   output_types <- c("tidy","row","scalar")
   estimate_types <- c("mean","sd","unc")
+
+  # TODO: OG_GENDER_LEVELS integrate
 
   if(length(setdiff(estimates,estimate_types))>0) {
     warning("unsupported estimate types:", paste(setdiff(estimates,estimate_types),sep=",") )

@@ -146,6 +146,7 @@ names_sample.df %>%
               dicts = "wgen2",
               col_map=c(given = "firstname") ) 
 ```
+
 ```{r matching-over-time-samp}
 load_dict("ssa")
 show_dict("ssa") -> ssa.df
@@ -166,5 +167,3 @@ mixedyear.df  %<>%
 mixedyear.df
 
 ```
-
-

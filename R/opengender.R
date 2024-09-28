@@ -52,7 +52,7 @@ OG_GENDER_LEVELS <- c("F","M","O")
 #' @importFrom dplyr mutate
 og_init_dictlist<-function() {
   core.df <- tibble::tribble(
-    ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri, ~domain
+    ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri, ~domain,
     "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352", "gender",
     "ssa","cumulative social security admin",2024,"external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
     "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
@@ -864,16 +864,7 @@ clean_dicts <- function(cleancache = TRUE,
 #'
 #' @return tibble with imputed gender as probability
 #' @export
-#' @importFrom dplyr select
-#' @importFrom dplyr rename
-#' @importFrom dplyr mutate
-#' @importFrom dplyr left_join
-#' @importFrom dplyr anti_join
-#' @importFrom dplyr inner_join
-#' @importFrom dplyr coalesce
-#' @importFrom tibble as_tibble
-#' @importFrom fuzzyjoin stringdist_join
-#' @importFrom tidyr nest
+
 
 #'
 #' @examples [TODO]
@@ -891,6 +882,23 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
                              domain_levels = OG_GENDER_LEVELS )
 
 }
+
+#' @importFrom dplyr select
+#' @importFrom dplyr rename
+#' @importFrom dplyr filter
+#' @importFrom dplyr mutate
+#' @importFrom dplyr left_join
+#' @importFrom dplyr anti_join
+#' @importFrom dplyr inner_join
+#' @importFrom dplyr coalesce
+#' @importFrom dplyr join_by
+#' @importFrom dplyr bind_cols
+#' @importFrom dplyr bind_rows
+#' @importFrom tibble as_tibble
+#' @importFrom tibble tibble
+#' @importFrom fuzzyjoin stringdist_join
+#' @importFrom tidyr nest
+#' @importFrom tidyr unnest
 
 add_category_predictions <- function(x, col_map = c(given="given", year="", country=""),
                                    dicts = c("kantro"),
@@ -1010,7 +1018,7 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
 
     year_interp<- function( y, y_l, y_u, df_l, df_u) {
       if (is.na(y_l) && is.na(y_u)) {
-        rv <- tibble()
+        rv <- tibble::tibble()
       } else if(is.na(y_l)) {
         rv <- df_u
       } else if(is.na(y_u)) {
@@ -1020,7 +1028,7 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
       } else {
         dft <- dplyr::bind_rows(df_l,df_u)
         rv <- dft[1,] + (((y-y_l)/(y_u-y_l)) *(dft[2,]-dft[1,]))
-        rv <- rv %>% mutate(n=as.integer(round(n)))
+        rv <- rv %>% dplyr::mutate(n=as.integer(round(n)))
       }
       return(rv)
     }
@@ -1030,29 +1038,29 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
 
     # join to unmatched
     match_cur.df <-
-      left_join(unmatched.df,
-              dicts.tbl %>% filter(year< OG_DICT_ANYYEAR),
-              by = join_by( !!!{ind_ny}
+      dplyr::left_join(unmatched.df,
+              dicts.tbl %>% dplyr::filter(year< OG_DICT_ANYYEAR),
+              by = dplyr::join_by( !!!{ind_ny}
                             , closest(year>=year))) %>%
-      rename(year=year.x, year_l=year.y) %>%
-      nest(x_l=c(-starts_with("year"),-{{ind_ny}})) %>%
-      bind_cols(
-        left_join(unmatched.df,
-                  dicts.tbl  %>% filter(year< OG_DICT_ANYYEAR),
-                  by = join_by(!!!{ind_ny},closest(year<=year))) %>%
-        rename(year=year.x, year_u=year.y) %>%
-        nest(x_u=c(-starts_with("year"),-{{ind_ny}})) %>%
-        select(year_u, x_u)
+      dplyr::rename(year=year.x, year_l=year.y) %>%
+      tidyr::nest(x_l=c(-starts_with("year"),-{{ind_ny}})) %>%
+      dplyr::bind_cols(
+        dplyr::left_join(unmatched.df,
+                  dicts.tbl  %>% dplyr::filter(year< OG_DICT_ANYYEAR),
+                  by = dplyr::join_by(!!!{ind_ny},closest(year<=year))) %>%
+        dplyr::rename(year=year.x, year_u=year.y) %>%
+        tidyr::nest(x_u=c(-starts_with("year"),-{{ind_ny}})) %>%
+        dplyr::select(year_u, x_u)
       ) %>%
-      filter(!is.na(year_l) | !is.na(year_u))
+      dplyr::filter(!is.na(year_l) | !is.na(year_u))
 
     if (nrow(match_cur.df)>0) {
        match_cur.df %<>%
-        rowwise() %>%
-        mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%
-        ungroup() %>%
-        select(-year_l,-year_u, -x_l, -x_u) %>%
-        unnest(x_int)
+        dplyr::rowwise() %>%
+        dplyr::mutate(x_int = list(year_interp(y=year,y_l=year_l,y_u=year_u,df_l=x_l,df_u=x_u))) %>%
+        dplyr::ungroup() %>%
+        dplyr::select(-year_l,-year_u, -x_l, -x_u) %>%
+        tidyr::unnest(x_int)
 
       match_cum.df %<>% dplyr::bind_rows(match_cur.df)
     }

@@ -5,6 +5,7 @@
 # Package: Constants --------------------------------------------------------
 OG_DICT_EXT <- "_dict"
 OG_NORM_EXT <- "_norm"
+OG_DESC_EXT <- "_desc"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_ANYYEAR <- 10000
@@ -30,7 +31,7 @@ OG_GENDER_LEVELS <- c("F","M","O")
     opengender.retries = 3,
     opengender.backoff = 10,
     opengender.fuzzymax = .05,
-    opengender.dict.minsize = 26,
+    opengender.dict.minsize = 10,
     opengender.bootreps = 1000
   )
   options(myOpt)
@@ -171,6 +172,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
   data_norm %<>% dplyr::anti_join(grand_totals.df %>%
      dplyr::filter(total < min_count_default), by=c(n="total"))
 
+  #TODO: OG_GENDER_LEVELS
   data_norm %<>% dplyr::bind_rows(
     tibble::tibble(given="[DUMMY]", gender=c("F","O","M"),
                    year = OG_DICT_NOYEAR , country = OG_DICT_NOCOUNTRY,
@@ -333,6 +335,10 @@ og_dict_gennormname<- function(name = "") {
   paste0(name, OG_NORM_EXT)
 }
 
+og_dict_gendescname<- function(name = "") {
+  paste0(name, OG_DESC_EXT)
+}
+
 og_dict_genfilepath<-function(name) {
   load_dir <- options("opengender.datadir")[[1]]
   rv <- file.path(load_dir,paste0(og_dict_gendictname(name), OG_DICT_FILE_EXT))
@@ -342,6 +348,12 @@ og_dict_genfilepath<-function(name) {
 og_dict_gennormfilepath<-function(name) {
   load_dir <- options("opengender.datadir")[[1]]
   rv <- file.path(load_dir,paste0(og_dict_gennormname(name), OG_DICT_FILE_EXT))
+  rv
+}
+
+og_dict_gendescfilepath<-function(name) {
+  load_dir <- options("opengender.datadir")[[1]]
+  rv <- file.path(load_dir,paste0(og_dict_gendescname(name), OG_DICT_FILE_EXT))
   rv
 }
 
@@ -788,14 +800,18 @@ load_dict <- function(name , force = FALSE) {
 #'
 #' @param data tibble
 #' @param name dictionary name
-#' @param save permanently save
+#' @param delete  permanently delete
+#' @param description description
+#' @param force force replacing existing added dictionary
+#' @param min_obs mininum observations per cell to use when normalizing
+
 #'
 #' @return logical success
 #' @export
 #'
 #' @examples [TODO]
 manage_local_dicts <- function(x, name = "local_1", description="a local dictionary",
-                              delete=FALSE, force=FALSE) {
+                              delete=FALSE, force=FALSE, min_obs = options("opengender.dict.minsize")[[1]] ) {
 
   if (delete) {
     if (!is.null(x) || !force) {
@@ -803,6 +819,8 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
     }
    file.remove(og_dict_gennormfilepath(name))
    file.remove(og_dict_genfilepath(name))
+   file.remove(og_dict_gendescfilepath(name))
+
   }
 
   dict_entry <- og_dict_fetch_entry(name)
@@ -815,6 +833,7 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
   }
 
   comment(x) <- description
+  attr(x,"min_obs_threshhold") <- min_obs
   og_dict_import(
     x = x ,
     name = name
@@ -923,6 +942,7 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
             paste(names(col_map)[!name(cpl_map) %in% all_ind])
     )
   }
+
 
   dicts.tbl <- og_dict_combine(unique(dicts))
 

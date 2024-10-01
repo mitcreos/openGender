@@ -27,6 +27,11 @@ dev_prep_kantro<-function () {
 
   kantro <-  tibble( given=readr::read_lines(file.path(target_dir,male_file)),pr_f=0)
   kantro %<>% bind_rows( tibble( given=readr::read_lines(file.path(target_dir,female_file)),pr_f=1) )
+  comment(kantro) <- "kanytrowitz NLTK dictionary"
+  attr(kantro,"domain") <- "gender"
+  attr(kantro,"version") <- 1
+
+
   usethis::use_data(kantro)
   kantro
 }

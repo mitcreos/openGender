@@ -5,6 +5,7 @@ Data management:
    - [DONE] appdirs selection
    - [DONE] User added dictionaries
    - generalize dictionary type management -- for linking orgs, race
+   - DEBUG - manage_dictionary
 
 Dependencies manage
   - [DONE] magrittr pipe

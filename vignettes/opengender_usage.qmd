@@ -148,6 +148,7 @@ names_sample.df %>%
 ```
 
 ```{r matching-over-time-samp}
+
 load_dict("ssa")
 show_dict("ssa") -> ssa.df
 ssa.df %>% filter(given=="leslie") %>%
@@ -165,5 +166,4 @@ mixedyear.df  %<>%
               col_map=c(given = "given") ) 
 
 mixedyear.df
-
 ```

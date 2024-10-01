@@ -6,6 +6,7 @@
 OG_DICT_EXT <- "_dict"
 OG_NORM_EXT <- "_norm"
 OG_DESC_EXT <- "_desc"
+OG_DESC_FILE_EXT <- ".rds"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_ANYYEAR <- 10000
@@ -48,8 +49,10 @@ OG_GENDER_LEVELS <- c("F","M","O")
 #' @importFrom tibble tribble
 #' @importFrom stringr str_extract
 #' @importFrom tibble tibble
+#' @importFrom tibble as_tibble
 #' @importFrom dplyr pull
 #' @importFrom dplyr bind_rows
+#' @importFrom dplyr rows_patch
 #' @importFrom dplyr mutate
 og_init_dictlist<-function() {
   core.df <- tibble::tribble(
@@ -67,9 +70,23 @@ og_init_dictlist<-function() {
                                        pattern =paste0('^(','.*',')', OG_DICT_EXT, OG_DICT_FILE_EXT), "\\1")
   added_dicts <- setdiff(loaded_names, core.df %>% dplyr::pull(name))
 
-  #TODO: extract description from user added
-  added_dicts.df <- tibble(name=added_dicts,desc="(not loaded)",type="added",loaded=FALSE)
-  dplyr::bind_rows(core.df,added_dicts.df)
+  added_dicts.df <- tibble::tibble(name=added_dicts, type="added", loaded=FALSE)
+  res <- dplyr::bind_rows(core.df, added_dicts.df)
+
+  desc_files <- dir(path=load_dir, pattern = paste0('^.*', OG_DESC_EXT, OG_DESC_FILE_EXT) )
+  desc.df <- purrr::map(desc_files, function(x) {
+      v<-readRDS(file.path(load_dir, x)) %>% tibble::as_tibble()
+      nm <- stringr::str_replace(x,
+          pattern = paste0('^(','.*',')', OG_DESC_EXT, OG_DESC_FILE_EXT), "\\1")
+      v %>% dplyr::mutate(name=nm)
+    }) %>%  purrr::list_rbind()
+
+  if (nrow(desc.df)>0) {
+    res %<>% dplyr::rows_patch(desc.df %>%
+               dplyr::select(intersect(colnames(res),colnames(desc.df))),
+                                      by="name")
+  }
+  res
 }
 
 #' @importFrom cachem cache_disk
@@ -265,6 +282,7 @@ og_dict_load_internal <- function(name, entry) {
 og_dict_import <- function(x, name, renormalize = FALSE) {
   dict_file <- og_dict_genfilepath(name)
   norm_file <- og_dict_gennormfilepath(name)
+  desc_file <- og_dict_gendescfilepath(name)
 
   if (!file.exists(norm_file)) {
     renormalize <- TRUE
@@ -281,6 +299,9 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   if (renormalize) {
     ds_norm <- og_dict_normalize(x)
     comment(ds_norm)<-comment(x)
+    attr(ds_norm,"domain") <- attr(x,"domain")
+    attr(ds_norm,"version") <- attr(x,"version")
+
     saveRDS(ds_norm, file=norm_file)
   } else {
     ds_norm <- readRDS(norm_file)
@@ -291,15 +312,24 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
 
   #update metatdata
   tmpcat <- .pkgenv[["dicts"]]
+  up.df <- tibble::tibble(name=name,desc=comment(ds_norm),type="added",loaded=TRUE,
+                          domain = attr(ds_norm,"domain"), version=attr(ds_norm,"version"))
+
   if (name %in% tmpcat[["name"]]) {
-    tmpcat[tmpcat[["name"]]==name,"desc"] <- comment(ds_norm)
-    tmpcat[tmpcat[["name"]]==name,"loaded"]<- TRUE
+    tmpcat %<>%
+      dplyr::rows_patch(
+        up.df
+      )
   } else {
     tmpcat %<>%
       dplyr::bind_rows(
-        tibble::tibble(name=name,desc=comment(ds_norm),type="added",loaded=TRUE)
+        up.df
       )
   }
+
+  #update description file
+  saveRDS(desc.df, file=desc_file)
+
   .pkgenv[["dicts"]] <- tmpcat
 }
 
@@ -353,7 +383,7 @@ og_dict_gennormfilepath<-function(name) {
 
 og_dict_gendescfilepath<-function(name) {
   load_dir <- options("opengender.datadir")[[1]]
-  rv <- file.path(load_dir,paste0(og_dict_gendescname(name), OG_DICT_FILE_EXT))
+  rv <- file.path(load_dir,paste0(og_dict_gendescname(name), OG_DESC_FILE_EXT))
   rv
 }
 
@@ -494,6 +524,9 @@ og_dict_process_wgen2 <- function(src) {
                   n=as.integer(n))
 
   attr(raw.df,"min_obs_threshhold") <- min_obs
+  attr(raw.df,"version") <- 1
+  attr(raw.df,"domain") <- "gender"
+
   comment(raw.df) <- "world gender dictionary"
   raw.df
 }
@@ -542,6 +575,9 @@ og_dict_process_ssa <- function(src) {
     dplyr::mutate(country="US")
 
   attr(raw.df,"min_obs_threshhold") <- min_obs
+  attr(raw.df,"version") <- 1
+  attr(raw.df,"domain") <- "gender"
+
   comment(raw.df) <- "US social security admin baby names"
   raw.df
 }
@@ -754,7 +790,7 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
 #' @importFrom dplyr select
 
 list_dicts <- function() {
-  res<- og_list_dict_internal() %>% dplyr::select(name,desc,type,loaded)
+  res<- og_list_dict_internal() %>% dplyr::select(name,desc,type,loaded,domain)
   res
 }
 
@@ -811,7 +847,8 @@ load_dict <- function(name , force = FALSE) {
 #'
 #' @examples [TODO]
 manage_local_dicts <- function(x, name = "local_1", description="a local dictionary",
-                              delete=FALSE, force=FALSE, min_obs = options("opengender.dict.minsize")[[1]] ) {
+                              delete=FALSE, force=FALSE, min_obs = options("opengender.dict.minsize")[[1]],
+                              domain  = "gender", version = "1") {
 
   if (delete) {
     if (!is.null(x) || !force) {
@@ -834,6 +871,9 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
 
   comment(x) <- description
   attr(x,"min_obs_threshhold") <- min_obs
+  attr(x,"domain") <- domain
+  attr(x,"version") <- 1
+
   og_dict_import(
     x = x ,
     name = name

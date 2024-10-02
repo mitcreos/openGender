@@ -126,9 +126,8 @@ list_dicts()
 data(kantro)
 bizarro <- kantro %>% 
   dplyr::mutate(gender= dplyr::case_match(gender, "M"~"F", "F"~"M"))
-comment(bizarro) <- "a bizarre dictionary"
-try(manage_local_dicts(bizarro,name="kantro"))
-manage_local_dicts(bizarro,name="bizarro", force=TRUE)
+try(manage_local_dicts(bizarro,name="kantro", description="reversed kantro"))
+manage_local_dicts(bizarro,name="bizarro", description="reversed kantro", force=TRUE)
 list_dicts()
 show_dict("bizarro")
 ```

@@ -57,10 +57,10 @@ OG_GENDER_LEVELS <- c("F","M","O")
 og_init_dictlist<-function() {
   core.df <- tibble::tribble(
     ~name, ~desc, ~version, ~type, ~custom_fun,  ~uri, ~domain,
-    "wgen2",   "world gender dictionary", 2, "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352", "gender",
-    "ssa","cumulative social security admin",2024,"external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
-    "kantro",  "kantrowitz  NLTK dictionary", 1, "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
-    "genderize",  "genderize", 1,  "api", "genderize", "https:://api.genderize.io", "gender",
+    "wgen2",   "world gender dictionary", "2", "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352", "gender",
+    "ssa","cumulative social security admin","2024","external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
+    "kantro",  "kantrowitz  NLTK dictionary", "1", "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
+    "genderize",  "genderize", "1",  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
 
@@ -155,7 +155,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
   data_norm <- x
 
   if (!is.null(attr(data_norm,"min_obs_threshhold"))) {
-    min_count_default <- attr(data_norm,"min_obs")
+    min_count_default <- attr(data_norm,"min_obs_threshold")
   }
 
   data_norm %<>% dplyr::select(all_of(v_req),any_of(v_opt))
@@ -181,13 +181,15 @@ og_dict_normalize <- function(x, min_count_default=1) {
   data_norm %<>% dplyr::mutate(country=og_clean_country(country))
   data_norm %<>% dplyr::mutate(gender=og_clean_gender(gender))
 
-  data_norm %>%
-    dplyr::group_by(given) %>%
-    dplyr::summarize(total =sum(n)) ->
-    grand_totals.df
+  if ("n" %in% colnames(x) ) {
+    data_norm %>%
+      dplyr::group_by(given) %>%
+      dplyr::summarize(total =sum(n)) ->
+      grand_totals.df
 
-  data_norm %<>% dplyr::anti_join(grand_totals.df %>%
-     dplyr::filter(total < min_count_default), by=c(n="total"))
+    data_norm %<>% dplyr::anti_join(grand_totals.df %>%
+                                      dplyr::filter(total < min_count_default), by=c(n="total"))
+  }
 
   #TODO: OG_GENDER_LEVELS
   data_norm %<>% dplyr::bind_rows(
@@ -524,7 +526,7 @@ og_dict_process_wgen2 <- function(src) {
                   n=as.integer(n))
 
   attr(raw.df,"min_obs_threshhold") <- min_obs
-  attr(raw.df,"version") <- 1
+  attr(raw.df,"version") <- "1"
   attr(raw.df,"domain") <- "gender"
 
   comment(raw.df) <- "world gender dictionary"
@@ -575,7 +577,7 @@ og_dict_process_ssa <- function(src) {
     dplyr::mutate(country="US")
 
   attr(raw.df,"min_obs_threshhold") <- min_obs
-  attr(raw.df,"version") <- 1
+  attr(raw.df,"version") <- "1"
   attr(raw.df,"domain") <- "gender"
 
   comment(raw.df) <- "US social security admin baby names"
@@ -872,7 +874,7 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
   comment(x) <- description
   attr(x,"min_obs_threshhold") <- min_obs
   attr(x,"domain") <- domain
-  attr(x,"version") <- 1
+  attr(x,"version") <-  version
 
   og_dict_import(
     x = x ,

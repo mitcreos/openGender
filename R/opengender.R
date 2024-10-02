@@ -330,7 +330,7 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   }
 
   #update description file
-  saveRDS(desc.df, file=desc_file)
+  saveRDS(up.df, file=desc_file)
 
   .pkgenv[["dicts"]] <- tmpcat
 }

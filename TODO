@@ -1,11 +1,16 @@
+BUGS
+ - memory use for large lists of names
+ - treatment of initials
+ - performance profiling
+
 Data management:
    - [DONE] built-in for testing
    - [DONE] download framework
    - [DONE] API framework
    - [DONE] appdirs selection
    - [DONE] User added dictionaries
-   - generalize dictionary type management -- for linking orgs, race
-   - DEBUG - manage_dictionary
+   - [DONE] generalize dictionary type management -- for linking orgs, race
+   - add name parsing - generalizing humaniformat, handling initials (with periods) etc
 
 Dependencies manage
   - [DONE] magrittr pipe

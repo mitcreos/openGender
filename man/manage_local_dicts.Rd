@@ -9,15 +9,25 @@ manage_local_dicts(
   name = "local_1",
   description = "a local dictionary",
   delete = FALSE,
-  force = FALSE
+  force = FALSE,
+  min_obs = options("opengender.dict.minsize")[[1]],
+  domain = "gender",
+  version = "1",
+  levels = NULL
 )
 }
 \arguments{
 \item{name}{dictionary name}
 
-\item{data}{tibble}
+\item{description}{description}
 
-\item{save}{permanently save}
+\item{delete}{permanently delete}
+
+\item{force}{force replacing existing added dictionary}
+
+\item{min_obs}{mininum observations per cell to use when normalizing}
+
+\item{data}{tibble}
 }
 \value{
 logical success

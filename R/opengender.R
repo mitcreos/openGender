@@ -7,6 +7,7 @@ OG_DICT_EXT <- "_dict"
 OG_NORM_EXT <- "_norm"
 OG_DESC_EXT <- "_desc"
 OG_DESC_FILE_EXT <- ".rds"
+OG_NORM_FILE_EXT <- ".rds"
 OG_DICT_FILE_EXT <- ".rds"
 OG_DICT_NOYEAR <- 3000
 OG_DICT_ANYYEAR <- 10000
@@ -385,7 +386,7 @@ og_dict_genfilepath<-function(name) {
 
 og_dict_gennormfilepath<-function(name) {
   load_dir <- options("opengender.datadir")[[1]]
-  rv <- file.path(load_dir,paste0(og_dict_gennormname(name), OG_DICT_FILE_EXT))
+  rv <- file.path(load_dir,paste0(og_dict_gennormname(name), OG_NORM_FILE_EXT))
   rv
 }
 
@@ -902,7 +903,9 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
 #' @examples [TODO]
 clean_dicts <- function(cleancache = TRUE,
                         cleannorm = TRUE,
-                        cleandata = FALSE) {
+                        cleandata = FALSE,
+                        cleandesc = FALSE ) {
+
   if (cleandata) {
     file.remove(dir(options()[["opengender.datadir"]],
                     full.names=TRUE,
@@ -912,10 +915,16 @@ clean_dicts <- function(cleancache = TRUE,
   if (cleannorm) {
     file.remove(dir(options()[["opengender.datadir"]],
                     full.names=TRUE,
-                    pattern = paste0('.*', OG_NORM_EXT, OG_DICT_FILE_EXT)))
+                    pattern = paste0('.*', OG_NORM_EXT, OG_NORM_FILE_EXT)))
     loaded_dicts <- .pkgenv %>% ls() %>% grep("_norm",.,value=TRUE)
     rm(list=loaded_dicts,envir=.pkgenv)
     .pkgenv[["dicts"]] <- og_init_dictlist()
+    cleandesc<- TRUE
+  }
+  if (cleandesc) {
+    file.remove(dir(options()[["opengender.datadir"]],
+                    full.names=TRUE,
+                    pattern = paste0('.*', OG_DESC_EXT, OG_DESC_FILE_EXT)))
   }
   if (cleancache) {
     .pkgenv[["cacheobj"]]$reset()

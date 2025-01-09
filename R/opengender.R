@@ -297,12 +297,17 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
     saveRDS(x, file = dict_file)
   }
 
+  if(attr(x,"domain")=="gender") {
+    attr(x,"levels") == OG_GENDER_LEVELS
+  }
+
   # normalize
   if (renormalize) {
     ds_norm <- og_dict_normalize(x)
     comment(ds_norm)<-comment(x)
     attr(ds_norm,"domain") <- attr(x,"domain")
     attr(ds_norm,"version") <- attr(x,"version")
+    attr(ds_norm,"levels") <- attr(x,"levels")
 
     saveRDS(ds_norm, file=norm_file)
   } else {
@@ -320,7 +325,8 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   if (name %in% tmpcat[["name"]]) {
     tmpcat %<>%
       dplyr::rows_patch(
-        up.df
+        up.df,
+        by="name"
       )
   } else {
     tmpcat %<>%
@@ -765,7 +771,6 @@ og_mn_boot <- function(x, rep=options()[["opengender.bootreps"]]) {
     dplyr::mutate(models =
                     purrr::map(splits, function(x)term_fun(x,termname="mean")))
 
-
   boot_se <-
     x_rs %>%
     dplyr::select(models) %>%
@@ -851,7 +856,7 @@ load_dict <- function(name , force = FALSE) {
 #' @examples [TODO]
 manage_local_dicts <- function(x, name = "local_1", description="a local dictionary",
                               delete=FALSE, force=FALSE, min_obs = options("opengender.dict.minsize")[[1]],
-                              domain  = "gender", version = "1") {
+                              domain  = "gender", version = "1", levels=NULL) {
 
   if (delete) {
     if (!is.null(x) || !force) {
@@ -876,6 +881,9 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
   attr(x,"min_obs_threshhold") <- min_obs
   attr(x,"domain") <- domain
   attr(x,"version") <-  version
+  if (!is.null(levels) && domain != "gender") {
+    attr(x,"levels")= levels
+  }
 
   og_dict_import(
     x = x ,
@@ -986,7 +994,6 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
     )
   }
 
-
   dicts.tbl <- og_dict_combine(unique(dicts))
 
   # create reduced normalized input table
@@ -1073,8 +1080,6 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
                      )
 
   match_cum.df <- match_cur.df
-
-
 
   if(year_adjust) {
     ind_ny <- setdiff(all_ind,"year")
@@ -1220,7 +1225,7 @@ gender_estimate <- function(x,  simplify_output = "tidy",
   }
 
   if(!simplify_output %in% output_types) {
-    warning("unsupport output type -- using tidy")
+    warning("unsupported output type -- using tidy")
     simplify_output <- "tidy"
   }
 

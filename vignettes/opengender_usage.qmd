@@ -83,6 +83,23 @@ names_sample.df %>%
 res
 ```
 
+```{r gender-coding-api}
+library(magrittr)
+
+names_sample.df <- ssa_baby_names.df %>%
+  dplyr::slice_sample(n=10, replace=FALSE)
+
+names_sample.df %<>% 
+  dplyr::bind_rows(tibble::tibble(firstname=c("Wozzleface","Hanah")))
+
+names_sample.df %>% 
+  add_gender_predictions(
+              dicts = "genderize",
+              col_map=c(given = "firstname") ) -> res
+
+res
+```
+
 ```{r point-estimation}
 
 res %>% dplyr::select("og_pr_F") %>% gender_mean()

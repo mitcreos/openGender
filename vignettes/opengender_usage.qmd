@@ -149,9 +149,6 @@ list_dicts()
 show_dict("bizarro")
 ```
 
-```         
-```
-
 ```{r wgen-dictionary}
 
 show_dict("wgen2")

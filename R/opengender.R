@@ -15,6 +15,7 @@ OG_DICT_NOCOUNTRY <- "00"
 OG_DICT_ANYCOUNTRY <- "99"
 OG_DICT_NON <- 0
 OG_GENDER_LEVELS <- c("F","M","O")
+OG_ORGNAMETYPE_LEVELS <- c("full","canonical","short")
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -61,6 +62,7 @@ og_init_dictlist<-function() {
     "wgen2",   "world gender dictionary", "2", "external", "wgen2", "https://dataverse.harvard.edu/api/access/datafile/4750352", "gender",
     "ssa","cumulative social security admin","2024","external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
     "kantro",  "kantrowitz  NLTK dictionary", "1", "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
+    "ror",  "research organization registry", "1.58-2024-12-11", "external", "ror", "https://zenodo.org/records/14429114/files/v1.58-2024-12-11-ror-data.zip", "organization",
     "genderize",  "genderize", "1",  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
@@ -85,7 +87,8 @@ og_init_dictlist<-function() {
   if (nrow(desc.df)>0) {
     res %<>% dplyr::rows_patch(desc.df %>%
                dplyr::select(intersect(colnames(res),colnames(desc.df))),
-                                      by="name")
+                                      by="name",
+               unmatched = "ignore")
   }
   res
 }
@@ -139,8 +142,21 @@ og_find_datadir <- function() {
 #' @importFrom tidyr pivot_wider
 
 og_dict_normalize <- function(x, min_count_default=1) {
-  v_req <- c("given","gender")
-  v_opt <- c("country","year","n")
+
+  dict_domain =   attr(x,"domain")
+  if (is.null(dict_domain)) {
+    stop("dictionary domain not specified")
+  }
+
+  if (dict_domain == "gender") {
+    v_req <- c("given","gender")
+    v_opt <- c("country","year","n")
+  } else if (dict_domain=="organization") {
+    v_req <- c("name","id","type")
+    v_opt <- c("country","year","n")
+  } else {
+    stop("unknown domain: ", dict_domain)
+  }
 
   # column checks
 
@@ -162,102 +178,114 @@ og_dict_normalize <- function(x, min_count_default=1) {
   data_norm %<>% dplyr::select(all_of(v_req),any_of(v_opt))
 
   # fill missing cols
-  if (!"n" %in% colnames(x) ) {
-    # temporarily set to 1 for reaggregation -- set to special value at end
-    data_norm %<>% dplyr::mutate(n = 1 )
-  }
 
   if (!"year" %in% colnames(x) ) {
     data_norm %<>% dplyr::mutate( year = OG_DICT_ANYYEAR)
+  } else {
+    data_norm %<>% dplyr::mutate(year=og_clean_year(year))
   }
 
-  if (!"country" %in% colnames(x) ) {
+  if (!"country" %in% colnames(x)) {
     data_norm %<>% dplyr::mutate(country = OG_DICT_ANYCOUNTRY)
   }
 
   # clean columns: given, country, year, gender, N
-
-  data_norm %<>% dplyr::mutate(given=og_clean_given(given))
-  data_norm %<>% dplyr::mutate(year=og_clean_year(year))
   data_norm %<>% dplyr::mutate(country=og_clean_country(country))
-  data_norm %<>% dplyr::mutate(gender=og_clean_gender(gender))
-
-  if ("n" %in% colnames(x) ) {
-    data_norm %>%
-      dplyr::group_by(given) %>%
-      dplyr::summarize(total =sum(n)) ->
-      grand_totals.df
-
-    data_norm %<>% dplyr::anti_join(grand_totals.df %>%
-                                      dplyr::filter(total < min_count_default), by=c(n="total"))
+  if ("given" %in% colnames(x)) {
+    data_norm %<>% dplyr::mutate(given=og_clean_given(given))
+  }
+  if ("gender" %in% colnames(x)) {
+      data_norm %<>% dplyr::mutate(gender=og_clean_gender(gender))
+  }
+  if ("orgtype" %in% colnames(x)) {
+    data_norm %<>% dplyr::mutate(type=og_clean_orgtype(type))
   }
 
-  #TODO: OG_GENDER_LEVELS
-  data_norm %<>% dplyr::bind_rows(
-    tibble::tibble(given="[DUMMY]", gender=c("F","O","M"),
-                   year = OG_DICT_NOYEAR , country = OG_DICT_NOCOUNTRY,
-                   n = 0)
-    # ensure dictionary has full range of gender codes
-  )
+  if (dict_domain == "gender") {
 
-  # aggregate multiple observations with same keys
-  # to support matches when country, year, is not supplied
+    if (!"n" %in% colnames(x) ) {
+      # temporarily set to 1 for reaggregation -- set to special value at end
+      data_norm %<>% dplyr::mutate(n = 1 )
+    }
 
-  data_norm %<>%
-    na.omit() %>%
-    dplyr::group_by(given,gender, year,country ) %>%
-    dplyr::summarize(n = sum(n), .groups="drop")
+    if ("n" %in% colnames(x) ) {
+      data_norm %>%
+        dplyr::group_by(given) %>%
+        dplyr::summarize(total =sum(n)) ->
+        grand_totals.df
 
-  agg_all <- NULL
-  agg_geo <- NULL
-  agg_time <- NULL
+      data_norm %<>% dplyr::anti_join(grand_totals.df %>%
+                                        dplyr::filter(total < min_count_default), by=c(n="total"))
+    }
 
-  ## add aggregates
-  # if either year or country column
-  if (("year" %in% colnames(x)) ||
+    #TODO: OG_GENDER_LEVELS
+    data_norm %<>% dplyr::bind_rows(
+      tibble::tibble(given="[DUMMY]", gender=c("F","O","M"),
+                     year = OG_DICT_NOYEAR , country = OG_DICT_NOCOUNTRY,
+                     n = 0)
+      # ensure dictionary has full range of gender codes
+    )
+
+    # aggregate multiple observations with same keys
+    # to support matches when country, year, is not supplied
+
+    data_norm %<>%
+      na.omit() %>%
+      dplyr::group_by(given,gender, year,country ) %>%
+      dplyr::summarize(n = sum(n), .groups="drop")
+
+    agg_all <- NULL
+    agg_geo <- NULL
+    agg_time <- NULL
+
+    ## add aggregates
+    # if either year or country column
+    if (("year" %in% colnames(x)) ||
         ("country" %in% colnames(x)))  {
 
-   data_norm %>%
-    dplyr::group_by(given,gender) %>%
-    dplyr::summarize(n=sum(n), .groups="drop") %>%
-    dplyr::mutate(year=OG_DICT_ANYYEAR,
-                  country=OG_DICT_ANYCOUNTRY) -> agg_all
-  }
+      data_norm %>%
+        dplyr::group_by(given,gender) %>%
+        dplyr::summarize(n=sum(n), .groups="drop") %>%
+        dplyr::mutate(year=OG_DICT_ANYYEAR,
+                      country=OG_DICT_ANYCOUNTRY) -> agg_all
+    }
 
-  if (("country" %in% colnames(x)))  {
-    data_norm %>%
-    dplyr::group_by(given,gender,year) %>%
-    dplyr::summarize(n=sum(n), .groups="drop") %>%
-    dplyr::mutate(country=OG_DICT_ANYCOUNTRY) -> agg_geo
-  }
+    if (("country" %in% colnames(x)))  {
+      data_norm %>%
+        dplyr::group_by(given,gender,year) %>%
+        dplyr::summarize(n=sum(n), .groups="drop") %>%
+        dplyr::mutate(country=OG_DICT_ANYCOUNTRY) -> agg_geo
+    }
 
-  if (("year" %in% colnames(x)))  {
-   data_norm %>%
-    dplyr::group_by(given,gender,country) %>%
-    dplyr::summarize(n=sum(n), .groups="drop") %>%
-    dplyr::mutate(year=OG_DICT_ANYYEAR) -> agg_time
-  }
+    if (("year" %in% colnames(x)))  {
+      data_norm %>%
+        dplyr::group_by(given,gender,country) %>%
+        dplyr::summarize(n=sum(n), .groups="drop") %>%
+        dplyr::mutate(year=OG_DICT_ANYYEAR) -> agg_time
+    }
 
-  #TODO: OG_GENDER_LEVELS
-  data_norm <-
-    dplyr::bind_rows(data_norm,agg_all, agg_geo, agg_time) %>%
-    dplyr::distinct() %>%
-    dplyr::arrange(given) %>%
-    tidyr::pivot_wider(names_from="gender",
-                       names_prefix="",
-                       values_from="n",
-                       values_fill=0) %>%
-    dplyr::filter(given!="[DUMMY]") %>%
-    dplyr::mutate(n= F + M + O,
-                  across(c(F,M,O) , ~ .x /n , .names = "pr_{.col}" )
-    ) %>%
-    dplyr::select(given,year,country,pr_F,pr_M,pr_O,n)
+    #TODO: OG_GENDER_LEVELS
+    data_norm <-
+      dplyr::bind_rows(data_norm,agg_all, agg_geo, agg_time) %>%
+      dplyr::distinct() %>%
+      dplyr::arrange(given) %>%
+      tidyr::pivot_wider(names_from="gender",
+                         names_prefix="",
+                         values_from="n",
+                         values_fill=0) %>%
+      dplyr::filter(given!="[DUMMY]") %>%
+      dplyr::mutate(n= F + M + O,
+                    across(c(F,M,O) , ~ .x /n , .names = "pr_{.col}" )
+      ) %>%
+      dplyr::select(given,year,country,pr_F,pr_M,pr_O,n)
 
 
-  # fill in missing N
-  if (!"n" %in% colnames(x) ) {
-    data_norm %<>%
-      dplyr::mutate(n = OG_DICT_NON )
+    # fill in missing N
+    if (!"n" %in% colnames(x) ) {
+      data_norm %<>%
+        dplyr::mutate(n = OG_DICT_NON )
+    }
+
   }
 
   data_norm
@@ -408,22 +436,32 @@ og_dict_load_api <- function(name, entry) {
 #' @importFrom purrr list_rbind
 
 og_dict_combine <- function(dicts,
-              missing_n_weight = options("opengender.dict.minsize")[[1]]
+              missing_n_weight = options("opengender.dict.minsize")[[1]],
+              dict_domain = "gender"
               ) {
   #TODO: OG_GENDER_LEVELS
 
-  dc.df <- purrr::map(dicts, show_dict) %>% list_rbind()
-  dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
+  udicts <- unique(dicts)
 
- res <- dc.df %>%
-    dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n,
-                  n_O = pr_O*n) %>%
-    dplyr::group_by(given,year,country) %>%
-    dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n,
-                     pr_O=sum(n_O)/n) %>%
-    ungroup() %>%
-    filter(n>=missing_n_weight)
-}
+  dc.df <- purrr::map(udicts, show_dict) %>% list_rbind()
+
+  if (dict_domain=="gender") {
+    dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_NON ~ missing_n_weight, .default=n))
+
+    res <- dc.df %>%
+      dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n,
+                    n_O = pr_O*n) %>%
+      dplyr::group_by(given,year,country) %>%
+      dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n,
+                       pr_O=sum(n_O)/n) %>%
+      ungroup() %>%
+      filter(n>=missing_n_weight)
+  } else {
+    res <- dc.df
+  }
+
+   res
+ }
 
 #' @importFrom dplyr filter
 og_dict_fetch_entry<-function(name) {
@@ -485,6 +523,24 @@ og_clean_country <- function(x) {
   rv %>%
     dplyr::case_match(
       mismatch ~ OG_DICT_NOCOUNTRY,
+      .default = x
+    ) %>%
+    tidyr::replace_na(OG_DICT_NOCOUNTRY)
+}
+
+
+#' @importFrom tidyr replace_na
+#' @importFrom dplyr case_match
+og_clean_orgtype <- function(x) {
+  codes <- OG_ORGNAMETYPE_LEVELS
+  rv <- as.character(x)
+  mismatch <- setdiff(unique(rv),codes)
+  if (length(mismatch)>0) {
+    warning("country codes not matched to org types", paste(mismatch, sep=","))
+  }
+  rv %>%
+    dplyr::case_match(
+      mismatch ~ codes[[1]],
       .default = x
     ) %>%
     tidyr::replace_na(OG_DICT_NOCOUNTRY)
@@ -590,6 +646,104 @@ og_dict_process_ssa <- function(src) {
 
   comment(raw.df) <- "US social security admin baby names"
   raw.df
+}
+
+#' @importFrom dplyr select
+#' @importFrom dplyr filter
+#' @importFrom dplyr mutate
+#' @importFrom dplyr arrange
+#' @importFrom dplyr distinct
+#' @importFrom stringr str_ends
+#' @importFrom stringr str_squish
+#' @importFrom tidyr separate_longer_delim
+#' @importFrom utils unzip
+#' @importFrom readr read_csv
+#' @importFrom readr col_integer
+#' @importFrom readr cols_only
+
+og_dict_process_ror <- function(src) {
+
+  # Coding notes:
+  #   After expert inspection of data, applied coding rules:
+  #   -
+
+  min_obs <- 1
+
+  filesls.df <-
+    utils::unzip(zipfile=src, list=TRUE, unzip=getOption("unzip"))
+  filesuffix <- "-ror-data.csv"
+
+
+  rorfn <- filesls.df %>%
+    dplyr::filter(stringr::str_ends(Name,filesuffix)) %>%
+    dplyr::pull(Name)
+
+
+  raw.df <- readr::read_csv(unz(src,filename=rorfn),
+                            col_types=readr::cols_only(
+                              id = readr::col_character(),
+                              name = readr::col_character(),
+                              aliases = readr::col_character(),
+                              labels = readr::col_character(),
+                              acronyms = readr::col_character(),
+                              country.country_code = readr::col_character()
+                            ))
+
+  # unpack multiple names
+
+  names.df <-
+    raw.df %>%
+    dplyr::select(id,country=country.country_code,name=name) %>%
+    dplyr::filter(!is.na(name)) %>%
+    tidyr::separate_longer_delim(delim=";", cols=c(name)) %>%
+    dplyr::filter(!is.na(name)) %>%
+    dplyr::mutate(type="canonical")
+
+  aliases.df <-
+    raw.df %>%
+    dplyr::select(id,country=country.country_code,name=aliases) %>%
+    dplyr::filter(!is.na(name)) %>%
+    tidyr::separate_longer_delim(delim=";", cols=c(name)) %>%
+    dplyr::filter(!is.na(name))   %>%
+    dplyr::mutate(type="full")
+
+  labels.df <-
+    raw.df %>%
+    dplyr::select(id,country=country.country_code,name=labels) %>%
+    dplyr::filter(!is.na(name)) %>%
+    tidyr::separate_longer_delim(delim=";", cols=c(name)) %>%
+    dplyr::filter(!is.na(name)) %>%
+    dplyr::mutate(name=stringr::str_remove(name,"^(\\s*\\w*: )")) %>%
+    dplyr::mutate(type="full")
+
+
+  acro.df <-
+    raw.df %>%
+    dplyr::select(id,country=country.country_code,name=acronyms) %>%
+    dplyr::filter(!is.na(name)) %>%
+    tidyr::separate_longer_delim(delim=";", cols=c(name)) %>%
+    dplyr::filter(!is.na(name))  %>%
+    dplyr::mutate(type="short")
+
+  rv <-
+    dplyr::bind_rows(names.df, aliases.df, acro.df, labels.df) %>%
+    dplyr::filter(!is.na(name)) %>%
+    dplyr::mutate(name=stringr::str_squish(name)) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(type=factor(type)) %>%
+    dplyr::mutate(country=og_clean_country(country)) %>%
+    dplyr::arrange(id,name)
+
+  # clean country_code
+
+  # instrument dictionary
+  attr(rv,"min_obs_threshhold") <- min_obs
+  version <- stringr::str_extract(rorfn,paste0("(.*)",filesuffix), group=1)
+  attr(rv,"version") <- version
+  attr(rv,"domain") <- "organization"
+
+  comment(rv) <- "registry of research organizations name file"
+  rv
 }
 
 #' @importFrom dplyr mutate
@@ -948,7 +1102,7 @@ clean_dicts <- function(cleancache = TRUE,
 #'
 #' @examples [TODO]
 
-add_gender_predictions <- function(x, col_map = c(given="given", year="", country=""),
+add_gender_predictions <- function(x, col_map = c(given="given", year="year", country="country"),
                           dicts = c("kantro"),
                           save_api_results = TRUE,
                           fuzzy_match = TRUE,
@@ -958,7 +1112,10 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
                              dicts =dicts, save_api_results=save_api_results,
                              fuzzy_match = fuzzy_match, year_adjust=year_adjust,
                              dict_domain = "gender",
-                             domain_levels = OG_GENDER_LEVELS )
+                             domain_levels = OG_GENDER_LEVELS,
+                             all_ind = c("given","year","country"),
+                             output_vars = c("og_pr_F","og_gender_details")
+                             )
 
 }
 
@@ -968,6 +1125,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 #' @importFrom dplyr mutate
 #' @importFrom dplyr left_join
 #' @importFrom dplyr anti_join
+#' @importFrom dplyr any_of
 #' @importFrom dplyr inner_join
 #' @importFrom dplyr coalesce
 #' @importFrom dplyr join_by
@@ -979,22 +1137,24 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="", countr
 #' @importFrom tidyr nest
 #' @importFrom tidyr unnest
 
-add_category_predictions <- function(x, col_map = c(given="given", year="", country=""),
-                                   dicts = c("kantro"),
-                                   save_api_results = TRUE,
-                                   fuzzy_match = TRUE,
-                                   year_adjust = TRUE,
-                                   dict_domain = NULL,
-                                   domain_levels = NULL ) {
+add_category_predictions <- function(x,
+                                   col_map,
+                                   dicts,
+                                   save_api_results,
+                                   fuzzy_match,
+                                   year_adjust,
+                                   dict_domain,
+                                   domain_levels,
+                                   all_ind,
+                                   output_vars) {
 
-  all_ind <- c("given","year","country")
   cmp <- col_map[col_map!=""]
   cmp <- cmp[names(cmp) %in% all_ind]
 
-  x %<>% select(!starts_with("og_"))
+  x %<>% dplyr::select(!dplyr::any_of(output_vars))
 
-  if (!"given" %in% names(cmp)) {
-    stop("must supply a column of given names")
+  if (!all_ind[1] %in% names(cmp)) {
+    stop("must supply a primary key", all_ind[1])
   }
 
   if (!all(names(col_map) %in% all_ind)) {
@@ -1024,6 +1184,7 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
 
   x_norm.df %<>% mutate(gender="O") # temporary dummy for normalization
 
+  attr(x_norm.df,"domain") <- dict_domain
   x_norm.df %<>%
     og_dict_normalize() %>%
     dplyr::select(all_ind)
@@ -1157,7 +1318,6 @@ add_category_predictions <- function(x, col_map = c(given="given", year="", coun
 
     match_cum.df %<>% dplyr::bind_rows(match_cur.df)
   }
-
 
   ### rejoin to input
   #TODO: OG_GENDER_LEVELS

@@ -4,7 +4,12 @@
 \alias{clean_dicts}
 \title{Title}
 \usage{
-clean_dicts(cleancache = TRUE, cleannorm = TRUE, cleandata = FALSE)
+clean_dicts(
+  cleancache = TRUE,
+  cleannorm = TRUE,
+  cleandata = FALSE,
+  cleandesc = FALSE
+)
 }
 \arguments{
 \item{cleancache}{logical}

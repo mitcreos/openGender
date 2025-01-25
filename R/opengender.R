@@ -15,7 +15,7 @@ OG_DICT_NOCOUNTRY <- "00"
 OG_DICT_ANYCOUNTRY <- "99"
 OG_DICT_NON <- 0
 OG_GENDER_LEVELS <- c("F","M","O")
-OG_ORGNAMETYPE_LEVELS <- c("full","canonical","short")
+OG_ORGNAMETYPES <- c("full","canonical","short")
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -63,6 +63,7 @@ og_init_dictlist<-function() {
     "ssa","cumulative social security admin","2024","external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
     "kantro",  "kantrowitz  NLTK dictionary", "1", "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
     "ror",  "research organization registry", "1.58-2024-12-11", "external", "ror", "https://zenodo.org/records/14429114/files/v1.58-2024-12-11-ror-data.zip", "organization",
+    "iso3166",  "iso country codes", "v2", "internal", "iso", "https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes", "organization",
     "genderize",  "genderize", "1",  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
@@ -302,7 +303,13 @@ og_dict_load_internal <- function(name, entry) {
   } else {
     data(list=as.character(name), package = "opengender")
     ds <- eval(as.symbol(name))
+    attr(ds,"domain") <- entry[["domain"]]
+    attr(ds,"version") <- entry[["version"]]
     comment(ds)<-entry[["desc"]]
+    if (entry[["custom_fun"]]!="") {
+      ds <- do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
+                    args = list(x=ds))
+    }
     og_dict_import( x = ds , name = name )
   }
 }
@@ -532,7 +539,7 @@ og_clean_country <- function(x) {
 #' @importFrom tidyr replace_na
 #' @importFrom dplyr case_match
 og_clean_orgtype <- function(x) {
-  codes <- OG_ORGNAMETYPE_LEVELS
+  codes <- OG_ORGNAMETYPES
   rv <- as.character(x)
   mismatch <- setdiff(unique(rv),codes)
   if (length(mismatch)>0) {
@@ -1113,7 +1120,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
                              fuzzy_match = fuzzy_match, year_adjust=year_adjust,
                              dict_domain = "gender",
                              domain_levels = OG_GENDER_LEVELS,
-                             all_ind = c("given","year","country"),
+                             all_keys = c("given","year","country"),
                              output_vars = c("og_pr_F","og_gender_details")
                              )
 
@@ -1146,21 +1153,24 @@ add_category_predictions <- function(x,
                                    year_adjust,
                                    dict_domain,
                                    domain_levels,
-                                   all_ind,
-                                   output_vars) {
+                                   all_keys,
+                                   output_vars
+                                  ) {
 
   cmp <- col_map[col_map!=""]
-  cmp <- cmp[names(cmp) %in% all_ind]
+  cmp <- cmp[names(cmp) %in% all_keys]
 
   x %<>% dplyr::select(!dplyr::any_of(output_vars))
 
-  if (!all_ind[1] %in% names(cmp)) {
-    stop("must supply a primary key", all_ind[1])
+  primary_key <- all_keys[1]
+
+  if (!primary_key %in% names(cmp)) {
+    stop("must supply a primary key", primary_key)
   }
 
-  if (!all(names(col_map) %in% all_ind)) {
+  if (!all(names(col_map) %in% all_keys)) {
     warning("additional columns in col_map",
-            paste(names(col_map)[!name(cpl_map) %in% all_ind])
+            paste(names(col_map)[!name(col_map) %in% all_keys])
     )
   }
 
@@ -1171,24 +1181,27 @@ add_category_predictions <- function(x,
   cmp_r <- setNames(names(cmp),cmp)
   cmp_nm <- names(cmp)
   cmp_nm_r <- names(cmp_r)
-  cmp_g <- cmp[["given"]]
+  cmp_primary <- cmp[[primary_key]]
 
   x_norm.df <- x %>%
     dplyr::select( {{cmp}} )
 
   # extract names before normalizing
   x_nms_match.df <- x_norm.df %>%
-    dplyr::select(given_input=given) %>%
-    dplyr::distinct() %>%
+    dplyr::select(primary_input = {{ primary_key }}) %>%
+    dplyr::distinct()
+
+  ### GENDER MATCHING PHASE
+  x_nms_match.df   %<>%
     dplyr::mutate(
-      given_match=og_clean_given(given_input))
+      primary_match=og_clean_given(primary_input))
 
   x_norm.df %<>% mutate(gender="O") # temporary dummy for normalization
 
   attr(x_norm.df,"domain") <- dict_domain
   x_norm.df %<>%
     og_dict_normalize() %>%
-    dplyr::select(all_ind)
+    dplyr::select(all_keys)
 
   ### fuzzy_match normalization
 
@@ -1224,9 +1237,9 @@ add_category_predictions <- function(x,
 
     x_nms_match.df %<>%
       dplyr::left_join(fuzzy_match.df,
-                       by=c(given_match="given_clean")) %>%
-      dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,given_match)) %>%
-      dplyr::select(given_input, given_match=given_fuzzy)
+                       by=c(primary_match="given_clean")) %>%
+      dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,primary_match)) %>%
+      dplyr::select(primary_input, primary_match=given_fuzzy)
 
   } else {
     x_norm.df %<>%
@@ -1247,13 +1260,13 @@ add_category_predictions <- function(x,
   match_cur.df <-
     x_norm.df %>%
     dplyr::inner_join(dicts.tbl,
-                     by = all_ind
+                     by = all_keys
                      )
 
   match_cum.df <- match_cur.df
 
   if(year_adjust) {
-    ind_ny <- setdiff(all_ind,"year")
+    ind_ny <- setdiff(all_keys,"year")
 
     year_interp<- function( y, y_l, y_u, df_l, df_u) {
       if (is.na(y_l) && is.na(y_u)) {
@@ -1273,7 +1286,7 @@ add_category_predictions <- function(x,
     }
 
     unmatched.df <-
-      dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
+      dplyr::anti_join( x_norm.df, match_cum.df, by=all_keys)
 
     # join to unmatched
     match_cur.df <-
@@ -1309,19 +1322,18 @@ add_category_predictions <- function(x,
 
    if(FALSE) {
     unmatched.df <-
-      dplyr::anti_join( x_norm.df, match_cum.df, by=all_ind)
+      dplyr::anti_join( x_norm.df, match_cum.df, by=all_keys)
 
     # join to unmatched
     match_cur.df <- unmatched.df %>%
       dplyr::inner_join(dicts.tbl,
-                        by = all_ind
+                        by = all_keys
       )
 
     match_cum.df %<>% dplyr::bind_rows(match_cur.df)
   }
 
-  ### rejoin to input
-  #TODO: OG_GENDER_LEVELS
+    #TODO: OG_GENDER_LEVELS
 
   rnt <- c("og_summary","og_details")
   names(rnt) <- output_vars
@@ -1331,14 +1343,15 @@ add_category_predictions <- function(x,
     dplyr::rename(dplyr::all_of(rnt)) %>%
     dplyr::select( {{cmp_nm}}, dplyr::all_of(output_vars))
 
-  byspec <- "given_input"; names(byspec) <- cmp_g
+  ### REJOIN PHASE
+  byspec <- "primary_input"; names(byspec) <- cmp_primary
   rejoined.df <-
     dplyr::left_join(x, x_nms_match.df,
                      by= byspec)
 
   rejoined.df %<>% dplyr::left_join(match_cum.df,
-                           by = c(given_match="given"))  %>%
-  dplyr::select(!given_match) %>% as_tibble()
+                           by = c(primary_match= {{primary_key}}))  %>%
+  dplyr::select(!primary_match) %>% as_tibble()
 
   rejoined.df
 }

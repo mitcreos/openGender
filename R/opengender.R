@@ -1126,6 +1126,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
 #' @importFrom dplyr left_join
 #' @importFrom dplyr anti_join
 #' @importFrom dplyr any_of
+#' @importFrom dplyr all_of
 #' @importFrom dplyr inner_join
 #' @importFrom dplyr coalesce
 #' @importFrom dplyr join_by
@@ -1322,10 +1323,13 @@ add_category_predictions <- function(x,
   ### rejoin to input
   #TODO: OG_GENDER_LEVELS
 
+  rnt <- c("og_summary","og_details")
+  names(rnt) <- output_vars
   match_cum.df %<>%
-    dplyr::mutate(og_pr_F=pr_F) %>%
-    tidyr::nest(og_details= c(pr_F,pr_M,pr_O, n,fuzzy_dist)) %>%
-    dplyr::select( {{cmp_nm}}, og_details, og_pr_F)
+    dplyr::mutate(og_summary = pr_F) %>%
+    tidyr::nest(og_details= c(pr_F, pr_M, pr_O, n, fuzzy_dist)) %>%
+    dplyr::rename(dplyr::all_of(rnt)) %>%
+    dplyr::select( {{cmp_nm}}, dplyr::all_of(output_vars))
 
   byspec <- "given_input"; names(byspec) <- cmp_g
   rejoined.df <-

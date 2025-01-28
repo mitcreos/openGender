@@ -15,7 +15,7 @@ OG_DICT_NOCOUNTRY <- "00"
 OG_DICT_ANYCOUNTRY <- "99"
 OG_DICT_NON <- 0
 OG_GENDER_LEVELS <- c("F","M","O")
-OG_ORGNAMETYPES <- c("full","canonical","short")
+OG_ORGNAMETYPES <- c("canonical","full","short","other")
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -63,7 +63,7 @@ og_init_dictlist<-function() {
     "ssa","cumulative social security admin","2024","external","ssa","https://www.ssa.gov/oact/babynames/names.zip", "gender",
     "kantro",  "kantrowitz  NLTK dictionary", "1", "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
     "ror",  "research organization registry", "1.58-2024-12-11", "external", "ror", "https://zenodo.org/records/14429114/files/v1.58-2024-12-11-ror-data.zip", "organization",
-    "iso3166",  "iso country codes", "v2", "internal", "iso", "https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes", "organization",
+    "iso3166",  "iso country codes", "v2", "internal", "iso3166", "https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes", "organization",
     "genderize",  "genderize", "1",  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
@@ -547,10 +547,10 @@ og_clean_orgtype <- function(x) {
   }
   rv %>%
     dplyr::case_match(
-      mismatch ~ codes[[1]],
+      mismatch ~ tail(codes,n=1),
       .default = x
     ) %>%
-    tidyr::replace_na(OG_DICT_NOCOUNTRY)
+    tidyr::replace_na(tail(codes,n=1))
 }
 
 # Internals: dictionary-specific source extraction  --------------------------------------------------------
@@ -604,6 +604,20 @@ og_dict_process_wgen2 <- function(src) {
   raw.df
 }
 
+#' @importFrom dplyr select
+#' @importFrom dplyr mutate
+
+og_dict_process_iso3166 <- function(x) {
+
+  # Coding notes:
+  #   After expert inspection of data, applied coding rules:
+  #   -
+
+  raw.df <- x %>%
+    dplyr::select(id=country_num,name=country_name, country=country_2d) %>%
+    dplyr::mutate(type=OG_ORGNAMETYPES[[1]])
+  raw.df
+}
 
 #' @importFrom dplyr select
 #' @importFrom dplyr mutate

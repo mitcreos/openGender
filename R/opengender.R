@@ -1110,6 +1110,7 @@ clean_dicts <- function(cleancache = TRUE,
 
 #' add_gender_predictions
 #'
+#' @param x input data frame
 #' @param col_map matching columns to impute
 #' @param dicts list of dictionaries
 #' @param save_api_results save api results
@@ -1368,6 +1369,184 @@ add_category_predictions <- function(x,
   dplyr::select(!primary_match) %>% as_tibble()
 
   rejoined.df
+}
+
+#' add_dict_matches
+#'
+#' @param x input data frame
+#' @param col_map  column to match against
+#' @param dicts list of dictionaries
+#' @param matchTypes  match whole string, start, or anywhere in string
+#' @param matchCaseVariations match title and all caps versions of dictionary keys
+#' @param matchFirstN match against partial dictionary keys of at least first N tokens
+#' @return tibble with list of measures in a column
+#' @export
+
+
+#'
+#' @examples [TODO]
+#'
+#' @importFrom dplyr select
+#' @importFrom dplyr rename
+#' @importFrom dplyr filter
+#' @importFrom dplyr mutate
+#' @importFrom dplyr relocate
+#' @importFrom dplyr pull
+#' @importFrom dplyr left_join
+#' @importFrom dplyr right_join
+#' @importFrom dplyr bind_cols
+#' @importFrom dplyr bind_rows
+#' @importFrom dplyr rowwise
+#' @importFrom dplyr summarise
+#' @importFrom dplyr arrange
+#' @importFrom dplyr ungroup
+#' @importFrom tibble tibble
+#' @importFrom tidyr nest
+#' @importFrom rlang arg_match
+#' @importFrom purrr map
+#' @importFrom purrr list_rbind
+#' @importFrom stringr str_to_upper
+#' @importFrom stringr str_to_title
+#' @importFrom stringr str_split
+#' @importFrom stringr str_count
+#' @importFrom glue glue_collapse
+
+add_dict_matches <- function(x, col_map = c(text="text"),
+                             dicts = c("kantro","iso3166"),
+                             matchTypes = c("exact", "contains","starts"),
+                             matchCaseVariations = TRUE,
+                             matchFirstN = Inf,
+                             addToDF = TRUE
+) {
+
+  rlang::arg_match(matchTypes, multiple = TRUE)
+
+  # extract names from dictionaries
+
+  extract_name_col <- function(dict, addCaseVariations) {
+    tmp.df <- show_dict(dict)
+    dict_domain <- attr(tmp.df,"domain")
+
+    if (dict_domain=="gender") {
+      res <- tmp.df %>%
+        dplyr::select(name=given, id = given)
+    } else {
+      res <- tmp.df %>%
+        dplyr::select(name, id = id)
+    }
+    res %<>% dplyr::mutate(dict = dict)
+
+    res
+  }
+
+  dicts.df <-
+    purrr::map(unique(dicts),  ~ extract_name_col( .x , matchCaseVariations)) %>%
+    purrr::list_rbind()
+
+  # add dictionary variations
+  if (matchCaseVariations) {
+    dicts.df %<>% dplyr::bind_rows(
+      dicts.df  %>% dplyr::mutate(name=stringr::str_to_upper(name)),
+      dicts.df %>% dplyr::mutate(name=stringr::str_to_title(name))
+    )
+  }
+
+  if (matchFirstN<Inf) {
+    dicts.df %<>% dplyr::bind_rows(
+      dicts.df %>%
+        dplyr::mutate(name_split =
+                        stringr::str_split(name, " ",
+                                           n=(matchFirstN+1))) %>%
+        rowwise() %>%
+        dplyr::mutate(name_short =
+                        glue::glue_collapse(head(name_split, n=matchFirstN),
+                                            sep=" ")) %>%
+        dplyr::ungroup() %>%
+        dplyr::select(name=name_short, id, dict)
+    )
+  }
+
+  tvar <- col_map[["text"]]
+  src.df <-  x %>%
+    dplyr::select( text = {{tvar}} ) %>%
+    dplyr::mutate( row = dplyr::row_number() )
+
+  # build ngram list for search
+  if (any(c("contains","starts") %in% matchTypes)) {
+    # analysis for tokenization
+
+    max_tokens <-
+      dicts.df %>% dplyr::summarise(
+        max_spaces = max(na.rm=TRUE,
+                         stringr::str_count(name," "))+1) %>%
+      dplyr::pull()
+
+    min_tokens <-
+      dicts.df %>% dplyr::summarise(
+        max_spaces = min(na.rm=TRUE,
+                         stringr::str_count(name," "))+1) %>%
+      dplyr::pull()
+
+    tokens.df <- src.df %>%
+      tidytext::unnest_ngrams( input="text", output="ngram",
+                               format = "text", to_lower=FALSE, drop=TRUE,
+                               n = max_tokens , n_min = min_tokens)
+  }
+
+  cum_matches.df <- tibble::tibble()
+
+  if ("exact" %in% matchTypes) {
+    # find exact matches within text
+    matches.df <- src.df %>%
+      dplyr::rename( name = text ) %>%
+      dplyr::left_join(dicts.df, by="name",
+                       relationship="many-to-many") %>%
+      dplyr::filter(!is.na(id)) %>%
+      dplyr::distinct(row,id,dict)
+
+    cum_matches.df %<>% dplyr::bind_rows(matches.df)
+  }
+
+  if (any(c("contains","starts") %in% matchTypes)) {
+    # find exact matches within text
+    matches.df <- tokens.df %>%
+      dplyr::left_join(dicts.df, by=c(ngram="name"),
+                       relationship="many-to-many") %>%
+      dplyr::filter(!is.na(id))
+
+    if (! "contains" %in% matchTypes) {
+      matches.df %<>%
+        dplyr::left_join(src.df, by="row") %>%
+        dplyr::mutate(starts = stringr::str_starts( text,
+                                                    pattern = stringr::coll(ngram) )) %>%
+        dplyr::filter(starts) %>%
+        dplyr::select(!starts, !text)
+    }
+
+    matches.df %<>%
+      dplyr::distinct(row,id,dict)
+
+    cum_matches.df %<>% dplyr::bind_rows(matches.df)
+  }
+
+  # normalize output
+  norm <- cum_matches.df %>%
+    tidyr::nest( .by = row , .key = "matches") %>%
+    dplyr::right_join(src.df %>% dplyr::select(row), by="row") %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(first = list(purrr::pluck(matches,1,1)))  %>%
+    dplyr::mutate(first=ifelse(is.null(first),NA,first)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(first=unlist(first)) %>%
+    dplyr::arrange(row) %>%
+    dplyr::select(!row) %>%
+    dplyr::relocate(og_match_first=first, og_match_details = matches)
+
+  if (addToDF) {
+    dplyr::bind_cols(x,norm)
+  } else {
+    norm
+  }
 }
 
 #' gender_mean

@@ -15,6 +15,8 @@ add_dict_matches(
 )
 }
 \arguments{
+\item{x}{input data frame}
+
 \item{col_map}{column to match against}
 
 \item{dicts}{list of dictionaries}
@@ -22,6 +24,8 @@ add_dict_matches(
 \item{matchTypes}{match whole string, start, or anywhere in string}
 
 \item{matchCaseVariations}{match title and all caps versions of dictionary keys}
+
+\item{matchFirstN}{match against partial dictionary keys of at least first N tokens}
 }
 \value{
 tibble with list of measures in a column

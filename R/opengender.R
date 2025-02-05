@@ -16,6 +16,7 @@ OG_DICT_ANYCOUNTRY <- "99"
 OG_DICT_NON <- 0
 OG_GENDER_LEVELS <- c("F","M","O")
 OG_ORGNAMETYPES <- c("canonical","full","short","other")
+OG_PACKAGENAME <- "opengender"
 
 # Package: Variables --------------------------------------------------------
 .pkgenv <- new.env(parent = emptyenv())
@@ -64,6 +65,8 @@ og_init_dictlist<-function() {
     "kantro",  "kantrowitz  NLTK dictionary", "1", "internal", "", "https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/corpora/names.zip", "gender",
     "ror",  "research organization registry", "1.58-2024-12-11", "external", "ror", "https://zenodo.org/records/14429114/files/v1.58-2024-12-11-ror-data.zip", "organization",
     "iso3166",  "iso country codes", "v2", "internal", "iso3166", "https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes", "organization",
+    "rosenmanGiven",  "Rosenman et al US race & ethnicity - given names", "v9", "external", "rosenmanGiven", "https://dataverse.harvard.edu/api/access/datafile/7060179/", "race",
+    "rosenmanLast",  "Rosenman et al US race & ethnicity - last names", "v9", "external", "rosenmanLast", "https://dataverse.harvard.edu/api/access/datafile/7060185/", "race",
     "genderize",  "genderize", "1",  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
@@ -301,7 +304,7 @@ og_dict_load_internal <- function(name, entry) {
   if (file.exists(dict_file)) {
     og_dict_import(name=name)
   } else {
-    data(list=as.character(name), package = "opengender")
+    data(list=as.character(name), package = OG_PACKAGENAME)
     ds <- eval(as.symbol(name))
     attr(ds,"domain") <- entry[["domain"]]
     attr(ds,"version") <- entry[["version"]]
@@ -767,6 +770,57 @@ og_dict_process_ror <- function(src) {
   rv
 }
 
+#' @importFrom dplyr select
+#' @importFrom dplyr mutate
+#' @importFrom dplyr case_match
+#' @importFrom dplyr na_if
+#' @importFrom readr read_tsv
+#' @importFrom readr col_character
+#' @importFrom readr col_double
+
+og_dict_process_rosenmanGiven <- function(src) {
+  og_dict_process_rosenman(src, cmt_str = "Rosenman Race amd Ethnicity - Given Name")
+}
+
+og_dict_process_rosenmanLast <- function(src) {
+  og_dict_process_rosenman(src, cmt_str = "Rosenman Race amd Ethnicity - Last Name")
+}
+
+og_dict_process_rosenman <- function(src, cmt_str) {
+
+  # Coding notes:
+  #
+
+  min_obs <- 20
+
+  raw.df <- readr::read_tsv(src, col_types=
+                              c(
+                                name = readr::col_character(),
+                                whi = readr::col_double(),
+                                bla = readr::col_double(),
+                                his = readr::col_double(),
+                                asi = readr::col_double(),
+                                oth = readr::col_double()
+                              )
+  )
+
+
+  raw.df %<>%
+    tidyr::pivot_longer(cols = !name, names_to="category", values_to="prob") %>%
+    dplyr::mutate(country = "US", year=2021, n=min_obs * prob,
+                  category = factor(category)) %>%
+    dplyr::select(!prob)
+
+
+  attr(raw.df,"min_obs_threshhold") <- min_obs
+  attr(raw.df,"version") <- "V9"
+  attr(raw.df,"domain") <- "race"
+
+  comment(raw.df) <- cmt_str
+  raw.df
+}
+
+
 #' @importFrom dplyr mutate
 #' @importFrom memoise drop_cache
 og_api_call <- function(given, country, year, apikey, host, service) {
@@ -1135,9 +1189,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
                              fuzzy_match = fuzzy_match, year_adjust=year_adjust,
                              dict_domain = "gender",
                              domain_levels = OG_GENDER_LEVELS,
-                             all_keys = c("given","year","country"),
-                             output_vars = c("og_pr_F","og_gender_details")
-                             )
+                             all_keys = c("given","year","country")                             )
 
 }
 
@@ -1168,8 +1220,7 @@ add_category_predictions <- function(x,
                                    year_adjust,
                                    dict_domain,
                                    domain_levels,
-                                   all_keys,
-                                   output_vars
+                                   all_keys
                                   ) {
 
   cmp <- col_map[col_map!=""]
@@ -1188,6 +1239,10 @@ add_category_predictions <- function(x,
             paste(names(col_map)[!name(col_map) %in% all_keys])
     )
   }
+
+  # set output vars
+  output_vars <- c("og_pr_F","og_gender_details")
+
 
   dicts.tbl <- og_dict_combine(unique(dicts))
 

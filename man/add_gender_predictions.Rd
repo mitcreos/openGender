@@ -14,6 +14,8 @@ add_gender_predictions(
 )
 }
 \arguments{
+\item{x}{input data frame}
+
 \item{col_map}{matching columns to impute}
 
 \item{dicts}{list of dictionaries}

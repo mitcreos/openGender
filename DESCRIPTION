@@ -34,7 +34,8 @@ Imports:
     rappdirs,
     readr,
     cachem,
-    utils
+    utils,
+    tidytext
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.0)

@@ -75,7 +75,7 @@ names_sample.df <- ssa_baby_names.df %>%
 names_sample.df %<>% 
   dplyr::bind_rows(tibble::tibble(firstname=c("Wozzleface","Hanah")))
 
-names_sample.df %>% 
+names_sample.df %>%
   add_gender_predictions(
               dicts = "kantro",
               col_map=c(given = "firstname") ) -> res
@@ -423,8 +423,11 @@ sample_editors_plus.df <- dplyr::bind_rows(sample_editors.df,
                             tibble::tibble(descriptions=c("","Canada","ANGOLA rules!!", "ANTIGUA AND")))
 
 
-add_dict_matches(sample_editors_plus.df, 
+
+res <- add_dict_matches(sample_editors_plus.df, 
                       col_map=c(text="descriptions"), dicts = c("iso3166"),
-                     matchTypes = c("starts"),
-                     matchFirstN = 2) 
+                     matchTypes = c("exact","starts"),
+                     matchFirstN = 3)  
+
+res
 ```

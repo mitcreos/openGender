@@ -147,16 +147,30 @@ og_find_datadir <- function() {
 
 og_dict_normalize <- function(x, min_count_default=1) {
 
+  #NOTE: Domain and measure logic is encoded in this function -- consider
+  #      refactoring into data structure
+
   dict_domain =   attr(x,"domain")
   if (is.null(dict_domain)) {
     stop("dictionary domain not specified")
   }
 
+  dict_levels <- NULL
+
   if (dict_domain == "gender") {
     v_req <- c("given","gender")
+    v_key <- "given"
+    v_cat <- "gender"
     v_opt <- c("country","year","n")
   } else if (dict_domain=="organization") {
     v_req <- c("name","id","type")
+    v_key <- "name"
+    v_cat <- "organization"
+    v_opt <- c("country","year","n")
+  } else if (dict_domain=="race") {
+    v_req <- c("key","category")
+    v_key <- "key"
+    v_cat <- "category"
     v_opt <- c("country","year","n")
   } else {
     stop("unknown domain: ", dict_domain)
@@ -204,6 +218,9 @@ og_dict_normalize <- function(x, min_count_default=1) {
   if ("orgtype" %in% colnames(x)) {
     data_norm %<>% dplyr::mutate(type=og_clean_orgtype(type))
   }
+
+
+
 
   if (dict_domain == "gender") {
 
@@ -1206,6 +1223,8 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
 #' @importFrom dplyr join_by
 #' @importFrom dplyr bind_cols
 #' @importFrom dplyr bind_rows
+#' @importFrom dplyr ungroup
+#' @importFrom dplyr group_vars
 #' @importFrom tibble as_tibble
 #' @importFrom tibble tibble
 #' @importFrom fuzzyjoin stringdist_join
@@ -1226,7 +1245,6 @@ add_category_predictions <- function(x,
   cmp <- col_map[col_map!=""]
   cmp <- cmp[names(cmp) %in% all_keys]
 
-  x %<>% dplyr::select(!dplyr::any_of(output_vars))
 
   primary_key <- all_keys[1]
 
@@ -1245,6 +1263,12 @@ add_category_predictions <- function(x,
 
 
   dicts.tbl <- og_dict_combine(unique(dicts))
+
+  if (length(dplyr::group_vars(x))) {
+    warning("ungrouping input")
+    x %<>% dplyr::ungroup()
+  }
+  x %<>% dplyr::select(!dplyr::any_of(output_vars))
 
   # create reduced normalized input table
 
@@ -1465,6 +1489,7 @@ add_category_predictions <- function(x,
 #' @importFrom stringr str_split
 #' @importFrom stringr str_count
 #' @importFrom glue glue_collapse
+#' @importFrom tidytext unnest_ngrams
 
 add_dict_matches <- function(x, col_map = c(text="text"),
                              dicts = c("kantro","iso3166"),
@@ -1482,6 +1507,7 @@ add_dict_matches <- function(x, col_map = c(text="text"),
     tmp.df <- show_dict(dict)
     dict_domain <- attr(tmp.df,"domain")
 
+    #TODO: base this on dict properties
     if (dict_domain=="gender") {
       res <- tmp.df %>%
         dplyr::select(name=given, id = given)
@@ -1500,10 +1526,10 @@ add_dict_matches <- function(x, col_map = c(text="text"),
 
   # add dictionary variations
   if (matchCaseVariations) {
-    dicts.df %<>% dplyr::bind_rows(
+    dicts.df <- dicts.df %>% dplyr::bind_rows(
       dicts.df  %>% dplyr::mutate(name=stringr::str_to_upper(name)),
       dicts.df %>% dplyr::mutate(name=stringr::str_to_title(name))
-    )
+    ) %>% dplyr::distinct()
   }
 
   if (matchFirstN<Inf) {
@@ -1518,11 +1544,12 @@ add_dict_matches <- function(x, col_map = c(text="text"),
                                             sep=" ")) %>%
         dplyr::ungroup() %>%
         dplyr::select(name=name_short, id, dict)
-    )
+    ) %>% dplyr::distinct()
   }
 
   tvar <- col_map[["text"]]
   src.df <-  x %>%
+    dplyr::ungroup() %>%
     dplyr::select( text = {{tvar}} ) %>%
     dplyr::mutate( row = dplyr::row_number() )
 
@@ -1571,9 +1598,10 @@ add_dict_matches <- function(x, col_map = c(text="text"),
 
     if (! "contains" %in% matchTypes) {
       matches.df %<>%
-        dplyr::left_join(src.df, by="row") %>%
+        dplyr::left_join(src.df,
+                         by="row") %>%
         dplyr::mutate(starts = stringr::str_starts( text,
-                                                    pattern = stringr::coll(ngram) )) %>%
+                        pattern = stringr::coll(as.character(ngram)) )) %>%
         dplyr::filter(starts) %>%
         dplyr::select(!starts, !text)
     }

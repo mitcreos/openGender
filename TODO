@@ -2,6 +2,7 @@ BUGS
  - memory use for large lists of names
  - treatment of initials
  - performance profiling
+ - matching on grouped data
 
 Data management:
    - [DONE] built-in for testing
@@ -41,10 +42,12 @@ Normalization and matching
 - optimize normalization for single dict -- avoid unnecc renorm
 - memory/perf profiling for add_gender_predictions
 - reorder size thresholding, fuzzy match, year agg, thresholding
-- exact and fuzzy linkage
-- token extraction
+- [DONE] exact and fuzzy linkage
+- [DONE]token extraction
 - extend for multiple categories (race)
 - ANY code display in show_dicts
+- match canonical names
+- longest match
 
 
 Data
@@ -52,8 +55,8 @@ Data
 - [DONE] World Names
 - [DONE] SSA
 - [DONE] ROR - for organizations
-- ISO countries
-- Imai, et. al - for race
+- [DONE] ISO countries
+- [DONE] Imai, et. al - for race
 - check against ISO codes package
 
 API Support
@@ -94,3 +97,11 @@ Site:
 - badges
 
 Git CI hooks
+
+
+
+SHORT
+- matched on group data
+- match length / longest
+- dict match type
+- race

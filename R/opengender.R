@@ -1494,26 +1494,33 @@ add_category_predictions <- function(x,
 add_dict_matches <- function(x, col_map = c(text="text"),
                              dicts = c("kantro","iso3166"),
                              matchTypes = c("exact", "contains","starts"),
+                             dictTypes = c("canonical","full","short","other"),
                              matchCaseVariations = TRUE,
                              matchFirstN = Inf,
                              addToDF = TRUE
 ) {
 
   rlang::arg_match(matchTypes, multiple = TRUE)
+  rlang::arg_match(dictTypes, multiple = TRUE)
+
 
   # extract names from dictionaries
 
-  extract_name_col <- function(dict, addCaseVariations) {
+  extract_name_col <- function(dict) {
     tmp.df <- show_dict(dict)
     dict_domain <- attr(tmp.df,"domain")
+    if (!"type" %in% colnames(tmp.df)) {
+      tmp.df %<>% dplyr::mutate(type="other")
+    }
+
 
     #TODO: base this on dict properties
     if (dict_domain=="gender") {
       res <- tmp.df %>%
-        dplyr::select(name=given, id = given)
+        dplyr::select(name=given, id = given, type)
     } else {
       res <- tmp.df %>%
-        dplyr::select(name, id = id)
+        dplyr::select(name, id = id, type)
     }
     res %<>% dplyr::mutate(dict = dict)
 
@@ -1521,8 +1528,13 @@ add_dict_matches <- function(x, col_map = c(text="text"),
   }
 
   dicts.df <-
-    purrr::map(unique(dicts),  ~ extract_name_col( .x , matchCaseVariations)) %>%
+    purrr::map(unique(dicts),  ~ extract_name_col( .x)) %>%
     purrr::list_rbind()
+
+  if (!is.null(dictTypes)) {
+    dicts.df %<>%
+      dplyr::filter(type %in% dictTypes)
+  }
 
   # add dictionary variations
   if (matchCaseVariations) {

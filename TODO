@@ -2,7 +2,7 @@ BUGS
  - memory use for large lists of names
  - treatment of initials
  - performance profiling
- - matching on grouped data
+ - [DONE] don't fail on group data, ungroup and throw a warning
 
 Data management:
    - [DONE] built-in for testing
@@ -101,7 +101,6 @@ Git CI hooks
 
 
 SHORT
-- matched on group data
 - match length / longest
 - dict match type
 - race

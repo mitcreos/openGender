@@ -75,7 +75,7 @@ names_sample.df <- ssa_baby_names.df %>%
 names_sample.df %<>% 
   dplyr::bind_rows(tibble::tibble(firstname=c("Wozzleface","Hanah")))
 
-names_sample.df %>%
+names_sample.df %>%  
   add_gender_predictions(
               dicts = "kantro",
               col_map=c(given = "firstname") ) -> res

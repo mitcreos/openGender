@@ -1510,9 +1510,8 @@ add_dict_matches <- function(x, col_map = c(text="text"),
     tmp.df <- show_dict(dict)
     dict_domain <- attr(tmp.df,"domain")
     if (!"type" %in% colnames(tmp.df)) {
-      tmp.df %<>% dplyr::mutate(type="other")
+      tmp.df %<>% dplyr::mutate(type="canonical")
     }
-
 
     #TODO: base this on dict properties
     if (dict_domain=="gender") {
@@ -1550,14 +1549,17 @@ add_dict_matches <- function(x, col_map = c(text="text"),
         dplyr::mutate(name_split =
                         stringr::str_split(name, " ",
                                            n=(matchFirstN+1))) %>%
-        rowwise() %>%
+        dplyr::rowwise() %>%
         dplyr::mutate(name_short =
                         glue::glue_collapse(head(name_split, n=matchFirstN),
                                             sep=" ")) %>%
         dplyr::ungroup() %>%
-        dplyr::select(name=name_short, id, dict)
+        dplyr::select(name=name_short, id, dict, type)
     ) %>% dplyr::distinct()
   }
+
+  dicts.df %<>%
+    dplyr::mutate(keylen = stringr::str_length(name))
 
   tvar <- col_map[["text"]]
   src.df <-  x %>%
@@ -1596,15 +1598,19 @@ add_dict_matches <- function(x, col_map = c(text="text"),
       dplyr::left_join(dicts.df, by="name",
                        relationship="many-to-many") %>%
       dplyr::filter(!is.na(id)) %>%
-      dplyr::distinct(row,id,dict)
+      dplyr::distinct(row,id,dict,name,keylen,type)
 
-    cum_matches.df %<>% dplyr::bind_rows(matches.df)
-  }
+    cum_matches.df %<>%
+      dplyr::bind_rows(matches.df) %>%
+      dplyr::distinct()
+
+      }
 
   if (any(c("contains","starts") %in% matchTypes)) {
     # find exact matches within text
     matches.df <- tokens.df %>%
-      dplyr::left_join(dicts.df, by=c(ngram="name"),
+      dplyr::rename(name="ngram")%>%
+      dplyr::left_join(dicts.df, by="name",
                        relationship="many-to-many") %>%
       dplyr::filter(!is.na(id))
 
@@ -1613,29 +1619,40 @@ add_dict_matches <- function(x, col_map = c(text="text"),
         dplyr::left_join(src.df,
                          by="row") %>%
         dplyr::mutate(starts = stringr::str_starts( text,
-                        pattern = stringr::coll(as.character(ngram)) )) %>%
+                        pattern = stringr::coll(as.character(name)) )) %>%
         dplyr::filter(starts) %>%
         dplyr::select(!starts, !text)
     }
 
     matches.df %<>%
-      dplyr::distinct(row,id,dict)
+      dplyr::distinct(row,id,dict,name,keylen,type)
 
-    cum_matches.df %<>% dplyr::bind_rows(matches.df)
+    cum_matches.df %<>%
+      dplyr::bind_rows(matches.df) %>%
+      dplyr::distinct()
+
   }
+
+  bestMatch.df <- cum_matches.df %>%
+    dplyr::group_by(row) %>%
+    dplyr::slice_max(keylen,n=1) %>%
+    dplyr::slice_head(n=1) %>%
+    dplyr::select(row, og_match_best=id)
+
 
   # normalize output
   norm <- cum_matches.df %>%
     tidyr::nest( .by = row , .key = "matches") %>%
+    dplyr::left_join(bestMatch.df, by="row") %>%
     dplyr::right_join(src.df %>% dplyr::select(row), by="row") %>%
     dplyr::rowwise() %>%
-    dplyr::mutate(first = list(purrr::pluck(matches,1,1)))  %>%
-    dplyr::mutate(first=ifelse(is.null(first),NA,first)) %>%
-    dplyr::ungroup() %>%
-    dplyr::mutate(first=unlist(first)) %>%
+    # dplyr::mutate(first = list(purrr::pluck(matches,1,1)))  %>%
+    # dplyr::mutate(first=ifelse(is.null(first),NA,first)) %>%
+    # dplyr::ungroup() %>%
+    # dplyr::mutate(og_match_first=unlist(first)) %>%
     dplyr::arrange(row) %>%
     dplyr::select(!row) %>%
-    dplyr::relocate(og_match_first=first, og_match_details = matches)
+    dplyr::relocate(og_match_details = matches)
 
   if (addToDF) {
     dplyr::bind_cols(x,norm)

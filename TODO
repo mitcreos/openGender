@@ -41,13 +41,13 @@ Normalization and matching
 - [DONE] Year interpolation
 - optimize normalization for single dict -- avoid unnecc renorm
 - memory/perf profiling for add_gender_predictions
-- reorder size thresholding, fuzzy match, year agg, thresholding
+- [DONE] reorder size thresholding, fuzzy match, year agg, thresholding
 - [DONE] exact and fuzzy linkage
 - [DONE]token extraction
 - extend for multiple categories (race)
 - ANY code display in show_dicts
-- match canonical names
-- longest match
+- [DONE] dict key type selection
+- [DONE] longest match
 
 
 Data
@@ -100,7 +100,10 @@ Git CI hooks
 
 
 
-SHORT
-- match length / longest
-- dict match type
-- race
+Refactor
+
+- normalize
+- combine
+- predict
+- match
+- estmate

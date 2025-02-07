@@ -425,9 +425,9 @@ sample_editors_plus.df <- dplyr::bind_rows(sample_editors.df,
 
 
 res <- add_dict_matches(sample_editors_plus.df, 
-                      col_map=c(text="descriptions"), dicts = c("iso3166"),
-                     matchTypes = c("exact","starts"),
-                     matchFirstN = 3)  
+                      col_map=c(text="descriptions"), dicts = c("iso3166","kantro"),
+                     matchTypes = c("exact","starts","contains"),
+                     matchFirstN = 2)  
 
 res
 ```

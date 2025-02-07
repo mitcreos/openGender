@@ -9,6 +9,7 @@ add_dict_matches(
   col_map = c(text = "text"),
   dicts = c("kantro", "iso3166"),
   matchTypes = c("exact", "contains", "starts"),
+  dictTypes = c("canonical", "full", "short", "other"),
   matchCaseVariations = TRUE,
   matchFirstN = Inf,
   addToDF = TRUE

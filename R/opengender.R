@@ -505,14 +505,21 @@ og_dict_fetch_entry<-function(name) {
 
 #' @import stringr
 #' @importFrom stringi stri_trans_general
+
 og_clean_given <- function(x) {
+  x %>%
+    stringr::str_squish() %>%
+    stringi::stri_trans_general(id = "Latin-ASCII") %>%
+    stringr::str_remove_all('[\\W0-9--\\-\\s]')
+}
+
+og_normalize_given <- function(x) {
   x %>%
     stringr::str_squish() %>%
     stringr::str_to_lower() %>%
     stringi::stri_trans_general(id = "Latin-ASCII") %>%
     stringr::str_replace_all('\\s', '-') %>%
-    stringr::str_remove_all('[\\W0-9--\\-]') %>%
-    stringr::str_replace_all('-.', '-')
+    stringr::str_remove_all('[\\W0-9--\\-\\s]')
 }
 
 #' @import stringr

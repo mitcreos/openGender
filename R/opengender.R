@@ -342,6 +342,16 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   norm_file <- og_dict_gennormfilepath(name)
   desc_file <- og_dict_gendescfilepath(name)
 
+  set_meta_attr <- function(x,y) {
+    newattr <- attributes(y)[setdiff(names(attributes(y)),
+                                     c("names","row.names","class"))]
+
+    if (length(newattr)>0) {
+      attributes(x)[names(newattr)] <- newattr
+    }
+    x
+  }
+
   if (!file.exists(norm_file)) {
     renormalize <- TRUE
   }
@@ -360,10 +370,7 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
   # normalize
   if (renormalize) {
     ds_norm <- og_dict_normalize(x)
-    comment(ds_norm)<-comment(x)
-    attr(ds_norm,"domain") <- attr(x,"domain")
-    attr(ds_norm,"version") <- attr(x,"version")
-    attr(ds_norm,"levels") <- attr(x,"levels")
+    ds_norm <- set_meta_attr(ds_norm,x)
 
     saveRDS(ds_norm, file=norm_file)
   } else {
@@ -513,7 +520,11 @@ og_clean_given <- function(x) {
     stringr::str_remove_all('[\\W0-9--\\-\\s]')
 }
 
-og_normalize_given <- function(x) {
+og_clean_last <- function(x) {
+  og_clean_given(x)
+}
+
+og_normalize_name <- function(x) {
   x %>%
     stringr::str_squish() %>%
     stringr::str_to_lower() %>%

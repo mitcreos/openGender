@@ -102,10 +102,11 @@ Git CI hooks
 
 Refactor
 
-- given_clean
-- case_normalize
+- [DONE] given_clean
+- [DONE] og_dict_import
 - normalize
 - combine
 - predict
+- case_normalize
 - match
 - estmate

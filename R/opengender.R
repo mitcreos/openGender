@@ -173,7 +173,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
     v_match <- "name"
     v_cat <- "id"
     v_add_matches <- c("country","year")
-    v_adds <- c("orgtype")
+    v_adds <- c("orgnametype")
   } else {
     stop("unknown domain: ", dict_domain)
   }
@@ -265,8 +265,8 @@ og_dict_normalize <- function(x, min_count_default=1) {
     ### augment dictionary with marginal aggregations to
     ## to support matches when op keys are not supplied
 
-    margins_sets <- lapply(1:length(v_add),
-                           function(x)combn(v_add, x, simplify=FALSE)) %>%
+    margins_sets <- lapply(1:length(v_add_matches),
+                           function(x)combn(v_add_matches, x, simplify=FALSE)) %>%
       purrr::list_flatten()
 
     margins_norm <-
@@ -293,7 +293,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
       dplyr::arrange(dplyr::across(c(v_match,v_add_matches)))
 
     data_norm %<>%
-      dplyr::filter(!is.na(as.symbol(v_match)))
+      dplyr::filter(!is.na(eval(as.symbol(v_match))))
 
     data_norm %<>% tidyr::pivot_wider(names_from={{v_cat}}, values_from= p, values_fill=0,
                                       names_prefix = "pr_")
@@ -558,8 +558,7 @@ og_clean_year<-function(x,ymin=1000,ymax=2050) {
 #' @importFrom tidyr replace_na
 #' @importFrom dplyr case_match
 og_clean_country <- function(x) {
-  codes <- c(opengender::iso3166[["country_2d"]],
-             OG_DICT_NOCOUNTRY, OG_DICT_ANYCOUNTRY)
+  codes <- c(opengender::iso3166[["country_2d"]])
   rv <- as.character(x)
   mismatch <- setdiff(unique(rv),codes)
   if (length(mismatch)>0) {
@@ -567,21 +566,20 @@ og_clean_country <- function(x) {
   }
   rv %>%
     dplyr::case_match(
-      mismatch ~ OG_DICT_NOCOUNTRY,
+      mismatch ~ NA,
       .default = x
-    ) %>%
-    tidyr::replace_na(OG_DICT_NOCOUNTRY)
+    )
 }
 
 
 #' @importFrom tidyr replace_na
 #' @importFrom dplyr case_match
-og_clean_orgtype <- function(x) {
+og_clean_orgnametype <- function(x) {
   codes <- OG_ORGNAMETYPES
   rv <- as.character(x)
   mismatch <- setdiff(unique(rv),codes)
   if (length(mismatch)>0) {
-    warning("country codes not matched to org types", paste(mismatch, sep=","))
+    warning("codes not matched to org types", paste(mismatch, sep=","))
   }
   rv %>%
     dplyr::case_match(
@@ -652,8 +650,8 @@ og_dict_process_iso3166 <- function(x) {
   #   -
 
   raw.df <- x %>%
-    dplyr::select(id=country_num,name=country_name, country=country_2d) %>%
-    dplyr::mutate(type=OG_ORGNAMETYPES[[1]])
+    dplyr::select(id=country_num, name=country_name, country=country_2d) %>%
+    dplyr::mutate(orgnametype=OG_ORGNAMETYPES[[1]])
 
   attr(raw.df,"version") <- "1"
   attr(raw.df,"domain") <- "identifier"
@@ -1532,17 +1530,17 @@ add_dict_matches <- function(x, col_map = c(text="text"),
   extract_name_col <- function(dict) {
     tmp.df <- show_dict(dict)
     dict_domain <- attr(tmp.df,"domain")
-    if (!"type" %in% colnames(tmp.df)) {
-      tmp.df %<>% dplyr::mutate(type="canonical")
+    if (!"orgnametype" %in% colnames(tmp.df)) {
+      tmp.df %<>% dplyr::mutate(orgnametype="canonical")
     }
 
     #TODO: base this on dict properties
     if (dict_domain=="gender") {
       res <- tmp.df %>%
-        dplyr::select(name=given, id = given, type)
+        dplyr::select(name=given, id = given, orgnametype)
     } else {
       res <- tmp.df %>%
-        dplyr::select(name, id = id, type)
+        dplyr::select(name, id = id, orgnametype)
     }
     res %<>% dplyr::mutate(dict = dict)
 
@@ -1555,7 +1553,7 @@ add_dict_matches <- function(x, col_map = c(text="text"),
 
   if (!is.null(dictTypes)) {
     dicts.df %<>%
-      dplyr::filter(type %in% dictTypes)
+      dplyr::filter(orgnametype %in% dictTypes)
   }
 
   # add dictionary variations
@@ -1577,7 +1575,7 @@ add_dict_matches <- function(x, col_map = c(text="text"),
                         glue::glue_collapse(head(name_split, n=matchFirstN),
                                             sep=" ")) %>%
         dplyr::ungroup() %>%
-        dplyr::select(name=name_short, id, dict, type)
+        dplyr::select(name=name_short, id, dict, orgnametype)
     ) %>% dplyr::distinct()
   }
 
@@ -1621,7 +1619,7 @@ add_dict_matches <- function(x, col_map = c(text="text"),
       dplyr::left_join(dicts.df, by="name",
                        relationship="many-to-many") %>%
       dplyr::filter(!is.na(id)) %>%
-      dplyr::distinct(row,id,dict,name,keylen,type)
+      dplyr::distinct(row,id,dict,name,keylen,orgnametype)
 
     cum_matches.df %<>%
       dplyr::bind_rows(matches.df) %>%
@@ -1648,7 +1646,7 @@ add_dict_matches <- function(x, col_map = c(text="text"),
     }
 
     matches.df %<>%
-      dplyr::distinct(row,id,dict,name,keylen,type)
+      dplyr::distinct(row,id,dict,name,keylen,orgnametype)
 
     cum_matches.df %<>%
       dplyr::bind_rows(matches.df) %>%

@@ -464,37 +464,52 @@ og_dict_load_api <- function(name, entry) {
 #' @importFrom dplyr mutate
 #' @importFrom dplyr group_by
 #' @importFrom dplyr summarise
-#' @importFrom dplyr case_match
+#' @importFrom dplyr filter
+#' @importFrom dplyr across
+#' @importFrom dplyr ungroup
 #' @importFrom purrr map
 #' @importFrom purrr list_rbind
+#' @importFrom tidyr replace_na
 
 og_dict_combine <- function(dicts,
-              missing_n_weight = options("opengender.dict.minsize")[[1]],
-              dict_domain = "gender"
-              ) {
-  #TODO: OG_GENDER_LEVELS
+                            missing_n_weight = options("opengender.dict.minsize")[[1]],
+                            dict_domain = "gender",
+                            dict_unique = TRUE) {
 
-  udicts <- unique(dicts)
+  if (dict_unique) {
+    udicts <- unique(dicts)
+  } else {
+    udicts <- dicts
+  }
 
-  dc.df <- purrr::map(udicts, show_dict) %>% list_rbind()
+  dc.df <- purrr::map(udicts, show_dict) %>% purrr::list_rbind()
 
-  if (dict_domain=="gender") {
-    dc.df %<>% dplyr::mutate(n=dplyr::case_match(n, OG_DICT_ANY_VAL[["n"]] ~ missing_n_weight, .default=n))
+  if (dict_domain %in% c("gender","classification")) {
+
+    # fill in missing n with min value
+    dc.df %<>% dplyr::mutate(n=as.double(n),
+                             n=tidyr::replace_na(n, missing_n_weight))
+
+    # reaggregate
+
+    pr_vars <-colnames(dc.df)[ colnames(dc.df) %>% stringr::str_starts("pr_") ]
+    key_vars <- setdiff(colnames(dc.df), c(recursive=TRUE, "n", pr_vars))
 
     res <- dc.df %>%
-      dplyr::mutate(n_F = pr_F * n, n_M = pr_M *n,
-                    n_O = pr_O*n) %>%
-      dplyr::group_by(given,year,country) %>%
-      dplyr::summarise(n=sum(n),pr_F = sum(n_F)/n, pr_M=sum(n_M)/n,
-                       pr_O=sum(n_O)/n) %>%
-      ungroup() %>%
-      filter(n>=missing_n_weight)
+      dplyr::mutate(dplyr::across(pr_vars, ~ .x *n ))
+
+    res %<>%
+      dplyr::group_by(dplyr::across(dplyr::all_of(key_vars))) %>%
+      dplyr::summarise(n=sum(n), across(pr_vars, ~ sum(.x)/n)) %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(n>=missing_n_weight)
   } else {
     res <- dc.df
   }
 
-   res
- }
+  res
+}
+
 
 #' @importFrom dplyr filter
 og_dict_fetch_entry<-function(name) {
@@ -852,7 +867,7 @@ og_dict_process_rosenman <- function(src, cmt_str) {
 
   attr(raw.df,"min_obs_threshhold") <- min_obs
   attr(raw.df,"version") <- "V9"
-  attr(raw.df,"domain") <- "race"
+  attr(raw.df,"domain") <- "classification"
 
   comment(raw.df) <- cmt_str
   raw.df

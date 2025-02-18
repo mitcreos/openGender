@@ -10,7 +10,7 @@ OG_DESC_FILE_EXT <- ".rds"
 OG_NORM_FILE_EXT <- ".rds"
 OG_DICT_FILE_EXT <- ".rds"
 #OG_DICT_NO_VAL <- list(year=3000, n=0, country="00")
-OG_DICT_ANY_VAL <- list(year=10000, n=0, country="99")
+#OG_DICT_ANY_VAL <- list(year=10000, n=0, country="99")
 OG_GENDER_LEVELS <- c("F","M","O")
 OG_ORGNAMETYPES <- c("canonical","full","short","other")
 OG_PACKAGENAME <- "opengender"
@@ -63,7 +63,7 @@ og_init_dictlist<-function() {
     "ror",  "research organization registry", "1.58-2024-12-11", "external", "ror", "https://zenodo.org/records/14429114/files/v1.58-2024-12-11-ror-data.zip", "identifier",
     "iso3166",  "iso country codes", "v2", "internal", "iso3166", "https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes", "identifier",
     "rosenmanGiven",  "Rosenman et al US race & ethnicity - given names", "v9", "external", "rosenmanGiven", "https://dataverse.harvard.edu/api/access/datafile/7060179/", "classification",
-    "rosenmanLast",  "Rosenman et al US race & ethnicity - last names", "v9", "external", "rosenmanLast", "https://dataverse.harvard.edu/api/access/datafile/7060185/", "classification",
+    "rosenmanLast",  "Rosenman et al US race & ethnicity - last names", "v9", "external", "rosenmanLast", "https://dataverse.harvard.edu/api/access/datafile/7060183/", "classification",
     "genderize",  "genderize", "1",  "api", "genderize", "https:://api.genderize.io", "gender",
   ) %>%
     dplyr::mutate( loaded=FALSE)
@@ -147,18 +147,20 @@ og_find_datadir <- function() {
 
 og_dict_normalize <- function(x, min_count_default=1) {
 
-  #NOTE: Domain and measure logic is encoded in this function -- consider
-  #      refactoring into data structure
-
   data_norm <- x
+
+  data_attr <- attributes(x)[setdiff(names(attributes(x)),
+                                   c("names","row.names","class"))]
 
   dict_domain =   attr(x,"domain")
   if (is.null(dict_domain)) {
     warn("dictionary domain not specified")
     dict_domain<-"classification"
-    attr(data_norm,"domain") <- dict_domain
+   data_attr["domain"] <- dict_domain
   }
 
+  #NOTE: Domain and measure logic is encoded in this function -- consider
+  #      refactoring into og_import functions and attributes
   if (dict_domain == "gender") {
     v_match <- "given"
     v_cat <- "gender"
@@ -178,13 +180,16 @@ og_dict_normalize <- function(x, min_count_default=1) {
     stop("unknown domain: ", dict_domain)
   }
 
-  attr(data_norm,"v_match") <- v_match
-  attr(data_norm,"v_cat") <- v_cat
-  attr(data_norm,"v_add_matches") <- v_add_matches
+
+  data_attr["v_match"] <- v_match
+  data_attr["v_cat"] - v_cat
+  data_attr["v_add_matches"] <- v_add_matches
   v_req <- c(recursive=TRUE, v_match, v_cat)
   v_opt <- c(recursive=TRUE, v_adds, v_add_matches)
   v_all <- c(recursive=TRUE, v_req, v_opt)
   v_na <- setdiff(v_all,colnames(x))
+
+
 
   # column checks
 
@@ -197,14 +202,14 @@ og_dict_normalize <- function(x, min_count_default=1) {
     warning("dropping additional variables")
   }
 
-  if (!is.null(attr(data_norm,"min_obs_threshhold"))) {
+  if (!is.null(attr(data_norm,"min_obs_threshold"))) {
     min_count_default <- attr(data_norm,"min_obs_threshold")
   } else {
     min_count_default <- options()[["opengender.dict.minsize"]]
   }
 
   data_norm %<>% dplyr::select(all_of(v_req),any_of(v_opt))
-  data_norm %<>% dplyr::filter(!is.na({{v_match}}))
+  data_norm %<>% dplyr::filter(!is.na(eval(as.symbol(v_match))))
 
   # clean columns
 
@@ -236,11 +241,11 @@ og_dict_normalize <- function(x, min_count_default=1) {
         dplyr::filter(!is.na(n))
 
       data_norm %>%
-        dplyr::group_by({{v_match}}) %>%
+        dplyr::group_by(dplyr::across(dplyr::all_of(v_match))) %>%
         dplyr::summarize(total = sum(n), .groups="drop"
         ) ->        grand_totals.df
 
-      # remove entries below threshhold
+      # remove entries below threshold
       data_norm %<>% dplyr::anti_join(grand_totals.df %>%
                                         dplyr::filter(total < min_count_default),
                                       by=c(n="total"))
@@ -257,6 +262,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
     # in output
 
     data_norm %>% dplyr::pull({{v_cat}}) %>% levels() -> v_lev
+    data_attr["v_lev"] <- v_lev
     data_norm %<>% dplyr::bind_rows(
       tibble::tibble(
         {{v_cat}} := v_lev,
@@ -292,12 +298,14 @@ og_dict_normalize <- function(x, min_count_default=1) {
       dplyr::select(!n_) %>%
       dplyr::arrange(dplyr::across(c(v_match,v_add_matches)))
 
-    data_norm %<>%
-      dplyr::filter(!is.na(eval(as.symbol(v_match))))
-
     data_norm %<>% tidyr::pivot_wider(names_from={{v_cat}}, values_from= p, values_fill=0,
                                       names_prefix = "pr_")
 
+    data_norm %<>%
+      dplyr::filter(!is.na(eval(as.symbol(v_match))))
+
+    data_norm %<>%
+      dplyr::relocate(.after=dplyr::last_col(), paste0("pr_",v_lev))
 
     # fill in N if not supplied
     if (!"n" %in% colnames(x) ) {
@@ -306,6 +314,8 @@ og_dict_normalize <- function(x, min_count_default=1) {
     }
 
   }
+
+  attributes(data_norm)[names(data_attr)] <- data_attr
 
   data_norm
 }
@@ -466,6 +476,7 @@ og_dict_load_api <- function(name, entry) {
 #' @importFrom dplyr summarise
 #' @importFrom dplyr filter
 #' @importFrom dplyr across
+#' @importFrom dplyr all_of
 #' @importFrom dplyr ungroup
 #' @importFrom purrr map
 #' @importFrom purrr list_rbind
@@ -496,7 +507,7 @@ og_dict_combine <- function(dicts,
     key_vars <- setdiff(colnames(dc.df), c(recursive=TRUE, "n", pr_vars))
 
     res <- dc.df %>%
-      dplyr::mutate(dplyr::across(pr_vars, ~ .x *n ))
+      dplyr::mutate(dplyr::across(dplyr::all_of(pr_vars), ~ .x *n ))
 
     res %<>%
       dplyr::group_by(dplyr::across(dplyr::all_of(key_vars))) %>%
@@ -566,8 +577,7 @@ og_clean_year<-function(x,ymin=1000,ymax=2050) {
   x %>%
     as.integer() %>%
     pmax(ymin) %>%
-    pmin(ymax) %>%
-    tidyr::replace_na(OG_DICT_NOYEAR)
+    pmin(ymax)
 }
 
 #' @importFrom tidyr replace_na
@@ -585,7 +595,6 @@ og_clean_country <- function(x) {
       .default = x
     )
 }
-
 
 #' @importFrom tidyr replace_na
 #' @importFrom dplyr case_match
@@ -647,7 +656,7 @@ og_dict_process_wgen2 <- function(src) {
                   gender = dplyr::na_if(gender,"?"),
                   n=as.integer(n))
 
-  attr(raw.df,"min_obs_threshhold") <- min_obs
+  attr(raw.df,"min_obs_threshold") <- min_obs
   attr(raw.df,"version") <- "1"
   attr(raw.df,"domain") <- "gender"
 
@@ -717,7 +726,7 @@ og_dict_process_ssa <- function(src) {
     purrr::list_rbind() %>%
     dplyr::mutate(country="US")
 
-  attr(raw.df,"min_obs_threshhold") <- min_obs
+  attr(raw.df,"min_obs_threshold") <- min_obs
   attr(raw.df,"version") <- "1"
   attr(raw.df,"domain") <- "gender"
 
@@ -814,7 +823,7 @@ og_dict_process_ror <- function(src) {
   # clean country_code
 
   # instrument dictionary
-  attr(rv,"min_obs_threshhold") <- min_obs
+  attr(rv,"min_obs_threshold") <- min_obs
   version <- stringr::str_extract(rorfn,paste0("(.*)",filesuffix), group=1)
   attr(rv,"version") <- version
   attr(rv,"domain") <- "identifier"
@@ -823,14 +832,6 @@ og_dict_process_ror <- function(src) {
   rv
 }
 
-#' @importFrom dplyr select
-#' @importFrom dplyr mutate
-#' @importFrom dplyr case_match
-#' @importFrom dplyr na_if
-#' @importFrom readr read_tsv
-#' @importFrom readr col_character
-#' @importFrom readr col_double
-
 og_dict_process_rosenmanGiven <- function(src) {
   og_dict_process_rosenman(src, cmt_str = "Rosenman Race amd Ethnicity - Given Name")
 }
@@ -838,6 +839,14 @@ og_dict_process_rosenmanGiven <- function(src) {
 og_dict_process_rosenmanLast <- function(src) {
   og_dict_process_rosenman(src, cmt_str = "Rosenman Race amd Ethnicity - Last Name")
 }
+
+#' @importFrom dplyr select
+#' @importFrom dplyr mutate
+#' @importFrom dplyr rename
+#' @importFrom readr read_tsv
+#' @importFrom readr col_character
+#' @importFrom readr col_double
+#' @importFrom tidyr pivot_longer
 
 og_dict_process_rosenman <- function(src, cmt_str) {
 
@@ -861,11 +870,13 @@ og_dict_process_rosenman <- function(src, cmt_str) {
   raw.df %<>%
     tidyr::pivot_longer(cols = !name, names_to="category", values_to="prob") %>%
     dplyr::mutate(country = "US", year=2021, n=min_obs * prob,
-                  category = factor(category)) %>%
+                  category = factor(category),
+                  name = stringr:str_title(name)) %>%
+    dplyr::rename(key=name) %>%
     dplyr::select(!prob)
 
 
-  attr(raw.df,"min_obs_threshhold") <- min_obs
+  attr(raw.df,"min_obs_threshold") <- min_obs
   attr(raw.df,"version") <- "V9"
   attr(raw.df,"domain") <- "classification"
 
@@ -891,7 +902,7 @@ og_api_call <- function(given, country, year, apikey, host, service) {
   }
   if (!"country" %in% colnames(res)) {
     if (missing(country)) {
-      country_res <- OG_DICT_NOCOUNTRY
+      country_res <- NA
     } else {
       country_res <- country
     }
@@ -899,7 +910,7 @@ og_api_call <- function(given, country, year, apikey, host, service) {
   }
   if (!"year" %in% colnames(res)) {
     if (missing(year)) {
-      year_res <- OG_DICT_NOYEAR
+      year_res <- NA
     } else {
       year_res <- year
     }
@@ -1161,7 +1172,7 @@ manage_local_dicts <- function(x, name = "local_1", description="a local diction
   }
 
   comment(x) <- description
-  attr(x,"min_obs_threshhold") <- min_obs
+  attr(x,"min_obs_threshold") <- min_obs
   attr(x,"domain") <- domain
   attr(x,"version") <-  version
   if (!is.null(levels) && domain != "gender") {
@@ -1240,8 +1251,8 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
     add_category_predictions(x=x, col_map = col_map,
                              dicts =dicts, save_api_results=save_api_results,
                              fuzzy_match = fuzzy_match, year_adjust=year_adjust,
+                             clean_key = TRUE,
                              dict_domain = "gender",
-                             domain_levels = OG_GENDER_LEVELS,
                              all_keys = c("given","year","country")                             )
 
 }
@@ -1273,6 +1284,7 @@ add_category_predictions <- function(x,
                                    save_api_results,
                                    fuzzy_match,
                                    year_adjust,
+                                   clean_key,
                                    dict_domain,
                                    domain_levels,
                                    all_keys
@@ -1296,7 +1308,6 @@ add_category_predictions <- function(x,
 
   # set output vars
   output_vars <- c("og_pr_F","og_gender_details")
-
 
   dicts.tbl <- og_dict_combine(unique(dicts))
 

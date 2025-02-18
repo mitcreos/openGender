@@ -180,16 +180,13 @@ og_dict_normalize <- function(x, min_count_default=1) {
     stop("unknown domain: ", dict_domain)
   }
 
-
-  data_attr["v_match"] <- v_match
-  data_attr["v_cat"] - v_cat
-  data_attr["v_add_matches"] <- v_add_matches
+  data_attr[["v_match"]] <- v_match
+  data_attr[["v_cat"]] <- v_cat
+  data_attr[["v_add_matches"]] <- v_add_matches
   v_req <- c(recursive=TRUE, v_match, v_cat)
   v_opt <- c(recursive=TRUE, v_adds, v_add_matches)
   v_all <- c(recursive=TRUE, v_req, v_opt)
   v_na <- setdiff(v_all,colnames(x))
-
-
 
   # column checks
 
@@ -262,7 +259,7 @@ og_dict_normalize <- function(x, min_count_default=1) {
     # in output
 
     data_norm %>% dplyr::pull({{v_cat}}) %>% levels() -> v_lev
-    data_attr["v_lev"] <- v_lev
+    data_attr[["v_lev"]] <- v_lev
     data_norm %<>% dplyr::bind_rows(
       tibble::tibble(
         {{v_cat}} := v_lev,
@@ -372,9 +369,6 @@ og_dict_import <- function(x, name, renormalize = FALSE) {
     saveRDS(x, file = dict_file)
   }
 
-  if(attr(x,"domain")=="gender") {
-    attr(x,"levels") == OG_GENDER_LEVELS
-  }
 
   # normalize
   if (renormalize) {
@@ -1724,7 +1718,7 @@ gender_mean <- function(x,  simplify_output = "scalar") {
                   estimates="mean")
 }
 
-#' Title
+#' gender_estimate
 #'
 #' @param x data frame with instrumented by impute
 #' @param simplify  simplify return values
@@ -1748,7 +1742,6 @@ gender_estimate <- function(x,  simplify_output = "tidy",
                            estimates=c("mean","sd","unc"),
                            ci_limit = .05) {
 
-  termlist <- c("per_F","per_M","per_O")
   output_types <- c("tidy","row","scalar")
   estimate_types <- c("mean","sd","unc")
 
@@ -1779,14 +1772,13 @@ gender_estimate <- function(x,  simplify_output = "tidy",
   if(inherits(x.df,"list")) {
     x.df <- purrr::list_rbind(x.df)
   } else if(is.numeric(x.df)) {
-    x.df <- tibble::tibble( pr_F = x.df )
+    x.df <- tibble::tibble( pr_CLASS = x.df )
     x.df %<>%
-      dplyr::mutate(pr_M=1-pr_F,pr_O=0*pr_F,n=NA_integer_)
+      dplyr::mutate(pr_NOT_CLASS=1-pr_CLASS,n=0)
   }
 
-  x.df %<>% dplyr::select(pr_M,pr_F,n) %>%
-    dplyr::mutate(pr_O=1-pr_M-pr_F) %>%
-    dplyr::relocate(pr_F,pr_M,pr_O,n)
+  x.df %<>%
+    dplyr::select(dplyr::starts_with("pr_"),n)
 
   res_cum <- NULL
 

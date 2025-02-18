@@ -248,7 +248,6 @@ og_dict_normalize <- function(x, min_count_default=1) {
                                       by=c(n="total"))
     }
 
-
     ### consolidate identical keys
 
     data_norm %<>%
@@ -478,7 +477,7 @@ og_dict_load_api <- function(name, entry) {
 
 og_dict_combine <- function(dicts,
                             missing_n_weight = options("opengender.dict.minsize")[[1]],
-                            dict_domain = "gender",
+                            dict_domain = "classification",
                             dict_unique = TRUE) {
 
   if (dict_unique) {
@@ -486,6 +485,8 @@ og_dict_combine <- function(dicts,
   } else {
     udicts <- dicts
   }
+
+  # TODO: check for incompatible attributes
 
   dc.df <- purrr::map(udicts, show_dict) %>% purrr::list_rbind()
 
@@ -543,13 +544,9 @@ og_clean_last <- function(x) {
   og_clean_given(x)
 }
 
-og_normalize_name <- function(x) {
-  x %>%
-    stringr::str_squish() %>%
-    stringr::str_to_lower() %>%
-    stringi::stri_trans_general(id = "Latin-ASCII") %>%
-    stringr::str_replace_all('\\s', '-') %>%
-    stringr::str_remove_all('[\\W0-9--\\-\\s]')
+og_normalize_key <- function(x) {
+  # TODO: base on key domain
+  og_clean_given(x)
 }
 
 #' @import stringr
@@ -1236,18 +1233,23 @@ clean_dicts <- function(cleancache = TRUE,
 #'
 #' @examples [TODO]
 
-add_gender_predictions <- function(x, col_map = c(given="given", year="year", country="country"),
+add_gender_predictions <- function(x,
+                          col_map = c(input_key="given", year="year", country="country"),
                           dicts = c("kantro"),
                           save_api_results = TRUE,
                           fuzzy_match = TRUE,
-                          year_adjust = TRUE) {
+                          year_adjust = TRUE,
+                          normalize_key=TRUE) {
 
-    add_category_predictions(x=x, col_map = col_map,
-                             dicts =dicts, save_api_results=save_api_results,
-                             fuzzy_match = fuzzy_match, year_adjust=year_adjust,
-                             clean_key = TRUE,
-                             dict_domain = "gender",
-                             all_keys = c("given","year","country")                             )
+    add_category_predictions(x=x,
+                             col_map = col_map,
+                             dicts =dicts,
+                             save_api_results=save_api_results,
+                             fuzzy_match = fuzzy_match,
+                             year_adjust=year_adjust,
+                             normalize_key = normalize_key,
+                             domain="gender"
+                                                 )
 
 }
 
@@ -1259,6 +1261,7 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
 #' @importFrom dplyr anti_join
 #' @importFrom dplyr any_of
 #' @importFrom dplyr all_of
+#' @importFrom dplyr starts_with
 #' @importFrom dplyr inner_join
 #' @importFrom dplyr coalesce
 #' @importFrom dplyr join_by
@@ -1273,26 +1276,37 @@ add_gender_predictions <- function(x, col_map = c(given="given", year="year", co
 #' @importFrom tidyr unnest
 
 add_category_predictions <- function(x,
-                                   col_map,
-                                   dicts,
-                                   save_api_results,
-                                   fuzzy_match,
-                                   year_adjust,
-                                   clean_key,
-                                   dict_domain,
-                                   domain_levels,
-                                   all_keys
+                                     col_map = c(input_key="key", year="year", country="country"),
+                                     dicts = c("kantro"),
+                                     save_api_results = TRUE,
+                                     fuzzy_match = TRUE,
+                                     year_adjust = TRUE,
+                                     normalize_key=TRUE,
+                                     domain="classification"
                                   ) {
+
+
+  # set output vars
+  output_var_prefix <- paste0(c("og_"),domain,"_")
+
+  dicts.tbl <- og_dict_combine(unique(dicts))
+
+  primary_key <- colnames(dicts.tbl)[[1]]
+
+  all_keys <- c( recursive=TRUE,
+                 primary_key,
+                 "country",
+                 "year")
 
   cmp <- col_map[col_map!=""]
   cmp <- cmp[names(cmp) %in% all_keys]
 
-
-  primary_key <- all_keys[1]
-
-  if (!primary_key %in% names(cmp)) {
-    stop("must supply a primary key", primary_key)
+  if (!"input_key" %in% names(cmp)) {
+    stop("must supply a input key")
   }
+
+  names(col_map)[which(names(col_map)=="input_key")] <- primary_key
+
 
   if (!all(names(col_map) %in% all_keys)) {
     warning("additional columns in col_map",
@@ -1300,16 +1314,11 @@ add_category_predictions <- function(x,
     )
   }
 
-  # set output vars
-  output_vars <- c("og_pr_F","og_gender_details")
-
-  dicts.tbl <- og_dict_combine(unique(dicts))
-
   if (length(dplyr::group_vars(x))) {
     warning("ungrouping input")
     x %<>% dplyr::ungroup()
   }
-  x %<>% dplyr::select(!dplyr::any_of(output_vars))
+  x %<>% dplyr::select(!dplyr::starts_with(output_var_prefix))
 
   # create reduced normalized input table
 
@@ -1326,17 +1335,19 @@ add_category_predictions <- function(x,
     dplyr::select(primary_input = {{ primary_key }}) %>%
     dplyr::distinct()
 
-  ### GENDER MATCHING PHASE
-  x_nms_match.df   %<>%
-    dplyr::mutate(
-      primary_match=og_clean_given(primary_input))
+  # clean key
+  if (normalize_key) {
+    x_nms_match.df   %<>%
+      dplyr::mutate(
+        primary_match = og_normalize_key(primary_input))
+  }
 
-  x_norm.df %<>% mutate(gender="O") # temporary dummy for normalization
+  ###  MATCHING PHASE
 
   attr(x_norm.df,"domain") <- dict_domain
   x_norm.df %<>%
     og_dict_normalize() %>%
-    dplyr::select(all_keys)
+    dplyr::select(all_keys)``
 
   ### fuzzy_match normalization
 
@@ -1712,13 +1723,47 @@ add_dict_matches <- function(x, col_map = c(text="text"),
 #'
 #' @examples [TODO]
 
-
 gender_mean <- function(x,  simplify_output = "scalar") {
-  gender_estimate(x, simplify_output=simplify_output,
+  class_mean (x, simplify_output=simplify_output)
+}
+
+#' class_mean
+#'
+#' @param x (grouped) data frame with instrumented by impute
+#' @param simplify return values
+#'
+#' @return mean value of each
+#' @export
+#'
+#' @examples [TODO]
+
+class_mean <- function(x,  simplify_output = "scalar") {
+  class_estimate(x, simplify_output=simplify_output,
                   estimates="mean")
 }
 
 #' gender_estimate
+#'
+#' @param x data frame with instrumented by impute
+#' @param simplify  simplify return values
+#'
+#' @return standard error value of each
+#' @export
+#'
+#' @examples [TODO]
+
+gender_estimate <- function(x,  simplify_output = "tidy",
+                            estimates=c("mean","sd","unc"),
+                            ci_limit = .05) {
+
+    class_estimate(x, simplify_output = simplify_output,
+                   estimates = estimates,
+                   ci_limit=ci_limit)
+
+
+}
+
+#' class_estimate
 #'
 #' @param x data frame with instrumented by impute
 #' @param simplify  simplify return values
@@ -1738,7 +1783,8 @@ gender_mean <- function(x,  simplify_output = "scalar") {
 #' @importFrom dplyr relocate
 #' @importFrom dplyr rename
 
-gender_estimate <- function(x,  simplify_output = "tidy",
+
+class_estimate <- function(x,  simplify_output = "tidy",
                            estimates=c("mean","sd","unc"),
                            ci_limit = .05) {
 

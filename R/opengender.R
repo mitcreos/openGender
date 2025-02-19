@@ -145,7 +145,7 @@ og_find_datadir <- function() {
 #' @importFrom tibble tibble
 #' @importFrom tidyr pivot_wider
 
-og_dict_normalize <- function(x, min_count_default=1) {
+og_dict_normalize <- function(x, min_count_default=1, keys_only = FALSE) {
 
   data_norm <- x
 
@@ -1305,8 +1305,7 @@ add_category_predictions <- function(x,
     stop("must supply a input key")
   }
 
-  names(col_map)[which(names(col_map)=="input_key")] <- primary_key
-
+  #names(col_map)[which(names(col_map)=="input_key")] <- primary_key
 
   if (!all(names(col_map) %in% all_keys)) {
     warning("additional columns in col_map",
@@ -1318,6 +1317,7 @@ add_category_predictions <- function(x,
     warning("ungrouping input")
     x %<>% dplyr::ungroup()
   }
+
   x %<>% dplyr::select(!dplyr::starts_with(output_var_prefix))
 
   # create reduced normalized input table
@@ -1328,26 +1328,32 @@ add_category_predictions <- function(x,
   cmp_primary <- cmp[[primary_key]]
 
   x_norm.df <- x %>%
-    dplyr::select( {{cmp}} )
+    dplyr::select( {{cmp}} ) %>%
+    dplyr::distinct() %>%
+    dplyr::mutate(input_key_norm = input_key)
 
-  # extract names before normalizing
-  x_nms_match.df <- x_norm.df %>%
-    dplyr::select(primary_input = {{ primary_key }}) %>%
-    dplyr::distinct()
-
-  # clean key
-  if (normalize_key) {
-    x_nms_match.df   %<>%
-      dplyr::mutate(
-        primary_match = og_normalize_key(primary_input))
+  # fill in secondary key columns if missing
+  v_na <- setdiff(c("country","year"),colnames(x_norm.df))
+  if (length(v_na) > 0) {
+    data_norm %<>%
+      dplyr::bind_rows(tibble::tibble(!!!v_na, .rows = 0, .name_repair = ~ v_na))
   }
 
-  ###  MATCHING PHASE
+  # normalize input key
+  if (normalize_key) {
+    unmatched_keys.df <-
+       x_norm.df %>%
+         dplyr::select(input_key) %>%
+         dplyr::anti_join(dicts.tbl %>% select({{primary_key}}),
+                       by=c( input_key = {{primary_key}}))
 
-  attr(x_norm.df,"domain") <- dict_domain
-  x_norm.df %<>%
-    og_dict_normalize() %>%
-    dplyr::select(all_keys)``
+    unmatched_keys.df %>%
+      dplyr::mutate(input_key_norm = og_normalize_key(input_key))
+
+    x_norm.df %<>%
+      dplyr::rows_update(unmatched_keys.df, by = "input_key" )
+
+  }
 
   ### fuzzy_match normalization
 
@@ -1355,42 +1361,40 @@ add_category_predictions <- function(x,
 
   if (fuzzy_match) {
 
-    unmatched_givens.df <- x_norm.df %>%
-      dplyr::anti_join(dicts.tbl %>% select(given),
-                       by=c("given"))
+    unmatched_keys.df <-
+      x_norm.df %>%
+      dplyr::select(input_key) %>%
+      dplyr::anti_join(dicts.tbl %>% select({{primary_key}}),
+                       by=c( input_key = {{primary_key}}))
 
-    fuzzy_match.df <- unmatched_givens.df  %>%
-      dplyr::select(given_clean=given) %>%
+    fuzzy_match.df <-
+      unmatched_keys.df  %>%
+      dplyr::select(input_key, input_key_norm) %>%
       fuzzyjoin::stringdist_inner_join(
       dicts.tbl %>%
-        dplyr::select(given) ,
-      by = c(given_clean="given") ,
+        dplyr::select({{primary_key}}) ,
+      by = c(input_key_norm= {{primary_key}}) ,
       distance_col = "fuzzy_dist",
       method = "cosine",
       max_dist = options()[["opengender.fuzzymax"]]
     )  %>%
-    dplyr::rename(given_fuzzy=given) %>%
-    dplyr::group_by(given_clean) %>%
+    dplyr::rename(input_key_fuzzy={{primary_key}}) %>%
+    dplyr::group_by(dplyr::across(dplyr::all_of({{primary_key}}))) %>%
     dplyr::slice_min(order_by = fuzzy_dist, n = 1) %>%
     dplyr::slice_head(n = 1)  %>%
     dplyr::ungroup()
 
-    x_norm.df %<>%
-      dplyr::left_join(fuzzy_match.df ,
-                       by=c(given="given_clean")) %>%
-      dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,given)) %>%
-      dplyr::select(given=given_fuzzy,year,country,fuzzy_dist)
 
-    x_nms_match.df %<>%
-      dplyr::left_join(fuzzy_match.df,
-                       by=c(primary_match="given_clean")) %>%
-      dplyr::mutate(given_fuzzy=dplyr::coalesce(given_fuzzy,primary_match)) %>%
-      dplyr::select(primary_input, primary_match=given_fuzzy)
+    fuzzy_match.df %<>%
+      select(input_key, input_key_norm = input_key_fuzzy ) %>%
+      na.omit()
+
+    x_norm.df %<>%
+      dplyr::rows_update(fuzzy_match, by = "input_key" )
 
   } else {
     x_norm.df %<>%
-      mutate(given=given_clean,
-             fuzzy_dist=NA_real_)
+      mutate( fuzzy_dist=NA_real_)
   }
 
 
@@ -1496,7 +1500,7 @@ add_category_predictions <- function(x,
                      by= byspec)
 
   rejoined.df %<>% dplyr::left_join(match_cum.df,
-                           by = c(primary_match= {{primary_key}}))  %>%
+                           by = c( primary_match= {{primary_key}}))  %>%
   dplyr::select(!primary_match) %>% as_tibble()
 
   rejoined.df

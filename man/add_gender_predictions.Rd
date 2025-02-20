@@ -6,11 +6,13 @@
 \usage{
 add_gender_predictions(
   x,
-  col_map = c(given = "given", year = "year", country = "country"),
+  col_map = c(input_key = "key", input_year = "year", input_country = "country"),
   dicts = c("kantro"),
   save_api_results = TRUE,
   fuzzy_match = TRUE,
-  year_adjust = TRUE
+  year_adjust = TRUE,
+  country_adjust = TRUE,
+  normalize_key = TRUE
 )
 }
 \arguments{

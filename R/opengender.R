@@ -1288,6 +1288,11 @@ add_category_predictions <- function(x,
                                      domain="classification"
                                   ) {
 
+  #NOTE: assumes dicts are comprised of {{primary_key}}, year, country, n, pr_* for each category
+
+  #NOTE: This needs to match col_map
+  all_keys <- c(input_key="key", input_year="year", input_country="country")
+
   # merge dicts
   dicts.tbl <- og_dict_combine(unique(dicts))
 
@@ -1527,6 +1532,7 @@ add_category_predictions <- function(x,
   og_details <- paste0(output_var_prefix, "details")
   output_vars <- c(og_class, og_details)
 
+  #NOTE: relies on naming convention of input_ for keys
   cmp_rename <- setNames(cmp_nm,
                 stringr::str_replace(comp_name,"(input_)(.*)","\\2"))
 

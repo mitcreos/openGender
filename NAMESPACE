@@ -2,6 +2,8 @@
 
 export(add_dict_matches)
 export(add_gender_predictions)
+export(class_estimate)
+export(class_mean)
 export(clean_dicts)
 export(gender_estimate)
 export(gender_mean)

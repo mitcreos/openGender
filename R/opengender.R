@@ -1255,6 +1255,18 @@ add_gender_predictions <- function(x,
 
 }
 
+#' add_class_predictions
+#'
+#' @param x input data frame
+#' @param col_map matching columns to impute
+#' @param dicts list of dictionaries
+#' @param save_api_results save api results
+#' @param fuzzy_match employ fuzzy matching
+#' @param year_adjust year adjustments
+#'
+#' @return tibble with imputed class as probability
+#' @export
+#'
 #' @importFrom dplyr select
 #' @importFrom dplyr rename
 #' @importFrom dplyr filter
@@ -1288,10 +1300,10 @@ add_category_predictions <- function(x,
                                      domain="classification"
                                   ) {
 
-  #NOTE: assumes dicts are comprised of {{primary_key}}, year, country, n, pr_* for each category
+  #NOTE: assumes dicts are comprised of {{primary_dict_key}}, year, country, n, pr_* for each category
 
   #NOTE: This needs to match col_map
-  all_keys <- c(input_key="key", input_year="year", input_country="country")
+  all_input_keys <- c(input_key="key", input_year="year", input_country="country")
 
   # merge dicts
   dicts.tbl <- og_dict_combine(unique(dicts))
@@ -1301,26 +1313,19 @@ add_category_predictions <- function(x,
 
   # variable interpolation for column remapping
 
-  cmp <- col_map[col_map!=""]
-  cmp <- cmp[names(cmp) %in% all_keys]
-  #cmp_r <- setNames(names(cmp),cmp)
+  cmp <- col_map[which(col_map!="")]
+  cmp <- cmp[intersect(names(cmp), names(all_input_keys))]
   cmp_nm <- names(cmp)
 
   primary_dict_key <- colnames(dicts.tbl)[[1]]
-  dict_keys <- c(primary_key, "country", "year")
-  input_keys <- c("input_key", "input_country", "input_year")
-  input_keys_norm <- c("input_key_norm","input_country_norm", "input_year")
+  dict_keys <- c(primary_dict_key, "country", "year")
 
-  if (!input_keys[[1]] %in% names(cmp)) {
+  if (!names(all_input_keys)[[1]] %in% names(cmp)) {
     stop("must supply a input key")
   }
 
-  #names(col_map)[which(names(col_map)=="input_key")] <- primary_key
-
-  if (!all(names(col_map) %in% input_keys)) {
-    warning("additional columns in col_map",
-            paste(names(col_map)[!name(col_map) %in% all_keys])
-    )
+  if (!all(names(col_map) %in% names(all_input_keys))) {
+    warning("additional columns in col_map ignored")
   }
 
   if (length(dplyr::group_vars(x))) {
@@ -1340,13 +1345,13 @@ add_category_predictions <- function(x,
     dplyr::mutate(input_key_norm = input_key)
 
   # fill in secondary key columns if missing
-  v_na <- setdiff(input_keys, colnames(x_norm.df))
+  v_na <- setdiff(setdiff(names(all_input_keys),"input_key"), colnames(x_norm.df))
   if (length(v_na) > 0) {
-    data_norm %<>%
+    x_norm.df %<>%
       dplyr::bind_rows(tibble::tibble(!!!v_na, .rows = 0, .name_repair = ~ v_na))
   }
 
-  x %<>%
+  x_norm.df %<>%
     dplyr::mutate(input_country_norm = input_country)
 
   # normalize input key
@@ -1356,8 +1361,8 @@ add_category_predictions <- function(x,
     unmatched_keys.df <-
        x_norm.df %>%
          dplyr::select(input_key, input_key_norm) %>%
-         dplyr::anti_join(dicts.tbl %>% select( {{primary_key}} ),
-                       by=c( input_key_norm = {{primary_key}} ))
+         dplyr::anti_join(dicts.tbl %>% select( {{primary_dict_key}} ),
+                       by=c( input_key_norm = {{primary_dict_key}} ))
 
     unmatched_keys.df %<>%
       dplyr::mutate(input_key_norm = og_normalize_key(input_key))
@@ -1368,46 +1373,47 @@ add_category_predictions <- function(x,
   }
 
   ### fuzzy_match normalization
+  x_norm.df %<>%
+    mutate( input_fuzzy_dist=NA_real_)
 
   # if no exact match -- find closest match to name only
+
 
   if (fuzzy_match) {
 
     unmatched_keys.df <-
       x_norm.df %>%
       dplyr::select(input_key, input_key_norm) %>%
-      dplyr::anti_join(dicts.tbl %>% select( {{primary_key}} ),
-                       by=c( input_key_norm = {{primary_key}} ))
+      dplyr::anti_join(dicts.tbl %>% select( {{primary_dict_key}} ),
+                       by=c( input_key_norm = {{primary_dict_key}} ))
+
+    #Sdg.tbl <- dicts.tbl %>% dplyr::select({{primary_dict_key}})
 
     fuzzy_match.df <-
       unmatched_keys.df  %>%
       dplyr::select(input_key, input_key_norm) %>%
       fuzzyjoin::stringdist_inner_join(
       dicts.tbl %>%
-        dplyr::select({{primary_key}}) ,
-      by = c(input_key_match= {{primary_key}}) ,
+        dplyr::select({{primary_dict_key}}) ,
+      by = c(input_key_norm= primary_dict_key) ,
       distance_col = "input_fuzzy_dist",
       method = "cosine",
       max_dist = options()[["opengender.fuzzymax"]]
     )
 
     fuzzy_match.df %<>%
-      dplyr::rename(input_key_fuzzy={{primary_key}}) %>%
-      dplyr::group_by(dplyr::across(dplyr::all_of({{primary_key}}))) %>%
+      dplyr::rename(input_key_fuzzy={{primary_dict_key}}) %>%
+      dplyr::group_by(input_key_norm) %>%
       dplyr::slice_min(order_by = input_fuzzy_dist, n = 1) %>%
       dplyr::slice_head(n = 1)  %>%
       dplyr::ungroup()
 
     fuzzy_match.df %<>%
-      select(input_key, input_key_norm = input_key_fuzzy ) %>%
-      na.omit()
+      select(input_key, input_key_norm = input_key_fuzzy, input_fuzzy_dist )
 
     x_norm.df %<>%
       dplyr::rows_update(fuzzy_match.df, by = "input_key" )
 
-  } else {
-    x_norm.df %<>%
-      mutate( input_fuzzy_dist=NA_real_)
   }
 
   # country adjust
@@ -1417,9 +1423,9 @@ add_category_predictions <- function(x,
     unmatched_keys.df <-
       x_norm.df %>%
       dplyr::select(input_key, input_key_norm, input_country, input_country_norm) %>%
-      dplyr::anti_join(dicts.tbl %>% select( {{primary_key}} , country ),
-                       by=c( input_key_norm = {{primary_key}} ,
-                             input_country_norm = country))
+      dplyr::anti_join(dicts.tbl %>% select( {{primary_dict_key}} , country ),
+                       by=c( input_key_norm = primary_dict_key ,
+                             input_country_norm = "country"))
 
     unmatched_keys.df %<>%
       dplyr::mutate(input_country_norm = NA )
@@ -1438,9 +1444,9 @@ add_category_predictions <- function(x,
   match_cur.df <-
     x_norm.df %>%
     dplyr::inner_join(dicts.tbl,
-                     by = c(input_key_norm = {{primary_key}},
-                            input_country_norm = country,
-                            input_year = year)
+                     by = c(input_key_norm = primary_dict_key,
+                            input_country_norm = "country",
+                            input_year = "year")
                      )
 
   match_cum.df <- match_cur.df
@@ -1468,9 +1474,9 @@ add_category_predictions <- function(x,
 
     unmatched.df <-
       dplyr::anti_join( x_norm.df, match_cum.df,
-                        by = c(input_key_norm = {{primary_key}},
-                               input_country_norm = country,
-                               input_year = year)
+                        by = c(input_key_norm = primary_dict_key,
+                               input_country_norm = "country",
+                               input_year = "year")
                         )
 
    # join to unmatched
@@ -1478,8 +1484,8 @@ add_category_predictions <- function(x,
       dplyr::left_join(unmatched.df,
               dicts.tbl %>% dplyr::filter(!is.na(year)),
               by = dplyr::join_by(
-                input_key_norm = {{primary_key}},
-                input_country_norm = country,
+                input_key_norm = primary_dict_key,
+                input_country_norm = "country",
                 closest(input_year>=year))) %>%
       dplyr::rename(year_l=year) %>%
       tidyr::nest(x_l=c(-starts_with("year"),-{{ind_ny}})) %>%
@@ -1487,8 +1493,8 @@ add_category_predictions <- function(x,
         dplyr::left_join(unmatched.df,
                          dicts.tbl %>% dplyr::filter(!is.na(year)),
                          by = dplyr::join_by(
-                           input_key_norm = {{primary_key}},
-                           input_country_norm = country,
+                           input_key_norm = primary_dict_key,
+                           input_country_norm = "country",
                            closest(year<=year))) %>%
         dplyr::rename(year_u=year) %>%
         tidyr::nest(x_u=c(-starts_with("year"),-starts_with("input_"))) %>%
@@ -1525,7 +1531,7 @@ add_category_predictions <- function(x,
 
   ### REJOIN TO INPUT TABLE
 
-  dict_vars <- colnames(dicts.tbl())
+  dict_vars <- colnames(dicts.tbl)
   pr_vars <- dict_vars[which(stringr::str_starts(dict_vars,"pr_"))]
   pr_first <- pr_vars[[1]]
   og_class <- paste0(output_var_prefix, pr_first)
@@ -1533,11 +1539,13 @@ add_category_predictions <- function(x,
   output_vars <- c(og_class, og_details)
 
   #NOTE: relies on naming convention of input_ for keys
-  cmp_rename <- setNames(cmp_nm,
-                stringr::str_replace(comp_name,"(input_)(.*)","\\2"))
+  #cmp_rename <- setNames(cmp_nm,
+  #             stringr::str_replace(cmp_nm,"(input_)(.*)","\\2"))
+
+  cmp_rename <- setNames(cmp_nm, cmp)
 
   match_cum.df %<>%
-    dplyr::mutate( {{og_class}} := {{pr_first}} ) %>%
+    dplyr::mutate( {{og_class}} := eval(as.symbol(pr_first)) ) %>%
     dplyr::rename( fuzzy_dist = input_fuzzy_dist ) %>%
     tidyr::nest( {{og_details}} :=
               c( dplyr::starts_with("pr_"), n, fuzzy_dist)) %>%
@@ -1546,9 +1554,8 @@ add_category_predictions <- function(x,
 
   rejoined.df <-
     x %>%
-    dplyr::left_join(match_cum.df,  by= cmp_nm)
-
-    #as_tibble()
+    dplyr::left_join(match_cum.df,  by= unname(cmp)) %>%
+    as_tibble()
 
   rejoined.df
 }

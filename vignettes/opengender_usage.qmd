@@ -76,9 +76,11 @@ names_sample.df %<>%
   dplyr::bind_rows(tibble::tibble(firstname=c("Wozzleface","Hanah")))
 
 names_sample.df %>%  
+  dplyr::mutate(dummycountry="US") %>%
   add_gender_predictions(
               dicts = "kantro",
-              col_map=c(given = "firstname") ) -> res
+              col_map=c( input_key = "firstname", 
+                         input_country = "dummycountry" ) ) -> res
 
 res
 ```
@@ -102,8 +104,8 @@ res
 
 ```{r point-estimation}
 
-res %>% dplyr::select("og_pr_F") %>% gender_mean()
-res %>% dplyr::select("og_details") %>% gender_mean(simplify_output = "tidy")
+res %>% dplyr::select("og_gender_pr_F") %>% gender_mean()
+res %>% dplyr::select("og_gender_details") %>% gender_mean(simplify_output = "tidy")
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_F= mean(og_pr_F,na.rm=TRUE))
@@ -112,7 +114,7 @@ res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_F = gender_mean(og_pr_F,simplify_output="scalar"))
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
-  dplyr::group_by(AM) %>% dplyr::summarise(prop_genders = gender_mean(og_pr_F,simplify_output="row")) %>% tidyr::unpack(prop_genders)
+  dplyr::group_by(AM) %>% dplyr::summarise(prop_genders = gender_mean(og_gender_pr_F,simplify_output="row")) %>% tidyr::unpack(prop_genders)
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_pr_F))) %>% tidyr::unnest(prop_F)

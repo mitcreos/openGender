@@ -161,6 +161,8 @@ og_dict_normalize <- function(x, min_count_default=1, keys_only = FALSE) {
 
   #NOTE: Domain and measure logic is encoded in this function -- consider
   #      refactoring into og_import functions and attributes
+
+
   if (dict_domain == "gender") {
     v_match <- "given"
     v_cat <- "gender"
@@ -223,6 +225,26 @@ og_dict_normalize <- function(x, min_count_default=1, keys_only = FALSE) {
     data_norm %<>%
       dplyr::bind_rows(tibble::tibble(!!!v_na, .rows = 0, .name_repair = ~ v_na))
   }
+
+  # type alignment
+
+  if("country" %in% colnames(data_norm)) {
+    data_norm  %<>%
+      dplyr::mutate( country = as.character(country))
+  }
+
+  if("year" %in% colnames(data_norm)) {
+    data_norm  %<>%
+      dplyr::mutate( year = as.numeric(year))
+  }
+
+  if("n" %in% colnames(data_norm)) {
+    data_norm  %<>%
+      dplyr::mutate( n = as.numeric(n))
+  }
+
+  data_norm %<>%
+    dplyr::mutate( {{v_match}} := as.character( eval(as.symbol(v_match))))
 
   # generate proportions if a count-type dictionary
   if ( "n" %in% v_all ) {
@@ -490,7 +512,7 @@ og_dict_combine <- function(dicts,
 
   dc.df <- purrr::map(udicts, show_dict) %>% purrr::list_rbind()
 
-  if (dict_domain %in% c("gender","classification")) {
+  if ((length(udicts)>1) && (dict_domain %in% c("gender","classification"))) {
 
     # fill in missing n with min value
     dc.df %<>% dplyr::mutate(n=as.double(n),
@@ -838,6 +860,7 @@ og_dict_process_rosenmanLast <- function(src) {
 #' @importFrom readr col_character
 #' @importFrom readr col_double
 #' @importFrom tidyr pivot_longer
+#' @importFrom forcats fct_relevel
 
 og_dict_process_rosenman <- function(src, cmt_str) {
 
@@ -861,11 +884,10 @@ og_dict_process_rosenman <- function(src, cmt_str) {
   raw.df %<>%
     tidyr::pivot_longer(cols = !name, names_to="category", values_to="prob") %>%
     dplyr::mutate(country = "US", year=2021, n=min_obs * prob,
-                  category = factor(category),
-                  name = stringr:str_title(name)) %>%
+                  category = forcats::fct_relevel(factor(category),"whi"),
+                  name = stringr::str_to_title(name)) %>%
     dplyr::rename(key=name) %>%
     dplyr::select(!prob)
-
 
   attr(raw.df,"min_obs_threshold") <- min_obs
   attr(raw.df,"version") <- "V9"
@@ -874,7 +896,6 @@ og_dict_process_rosenman <- function(src, cmt_str) {
   comment(raw.df) <- cmt_str
   raw.df
 }
-
 
 #' @importFrom dplyr mutate
 #' @importFrom memoise drop_cache
@@ -946,7 +967,6 @@ og_api_call_inner <-
 #' @importFrom tibble tibble
 #' @importFrom httr2 resp_body_json
 #' @importFrom jsonlite fromJSON
-
 
 og_url_build_genderize<-function(host = "api.genderize.io", given, country, year, apikey, service) {
   uri <- list()
@@ -1306,7 +1326,7 @@ add_category_predictions <- function(x,
   all_input_keys <- c(input_key="key", input_year="year", input_country="country")
 
   # merge dicts
-  dicts.tbl <- og_dict_combine(unique(dicts))
+  dicts.tbl <- og_dict_combine(dicts)
 
   # set up variable mappings
   output_var_prefix <- paste0(c("og_"),domain,"_")
@@ -1350,6 +1370,13 @@ add_category_predictions <- function(x,
     x_norm.df %<>%
       dplyr::bind_rows(tibble::tibble(!!!v_na, .rows = 0, .name_repair = ~ v_na))
   }
+
+  # type alignment
+
+  x_norm.df %<>%
+    dplyr::mutate( input_key = as.character(input_key),
+                   input_country = as.character(input_country),
+                   input_year = as.numeric(input_year) )
 
   x_norm.df %<>%
     dplyr::mutate(input_country_norm = input_country)

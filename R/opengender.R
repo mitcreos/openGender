@@ -162,7 +162,6 @@ og_dict_normalize <- function(x, min_count_default=1, keys_only = FALSE) {
   #NOTE: Domain and measure logic is encoded in this function -- consider
   #      refactoring into og_import functions and attributes
 
-
   if (dict_domain == "gender") {
     v_match <- "given"
     v_cat <- "gender"
@@ -636,12 +635,14 @@ og_clean_orgnametype <- function(x) {
 #' @importFrom readr col_character
 #' @importFrom readr col_integer
 #' @importFrom readr col_double
+#' @importFrom stringr str_to_title
+
 og_dict_process_wgen2 <- function(src) {
 
   # Coding notes:
   #   After expert inspection of data, applied coding rules:
   #   - assigned column types
-  #   - recoded old country codes and use of fips codes insteda of iso
+  #   - recoded old country codes and use of fips codes instead of iso
   #   - normalized undocumented use of '?' as NA
   #   - renamed variables for alignment with ingest
   #   - stray non-integer counts
@@ -659,12 +660,12 @@ og_dict_process_wgen2 <- function(src) {
   ))
 
   raw.df %<>%
-    dplyr::select(given=name,country=code,n=nobs,gender,) %>%
+    dplyr::select(given=stringr::str_to_title(name),country=code,n=nobs,gender,) %>%
     dplyr::mutate(country = dplyr::case_match(country,
                                               "BU" ~ "MM",
                                               "CB" ~ "KH",
                                               "KS" ~ "KR",
-                                              "??" ~ OG_DICT_NOCOUNTRY,
+                                              "??" ~ NA,
                                               .default = country),
                   gender = dplyr::na_if(gender,"?"),
                   n=as.integer(n))

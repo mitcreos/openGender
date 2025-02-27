@@ -5,7 +5,9 @@ editor: visual
 ---
 
 ```{r setup}
+library(magrittr)
 library(opengender)
+
 ```
 
 ```{r list-available}
@@ -67,7 +69,6 @@ ssa_baby_names.df <- structure(list( firstname = c("James", "Robert", "John", "M
 ```
 
 ```{r gender-coding}
-library(magrittr)
 
 names_sample.df <- ssa_baby_names.df %>%
   dplyr::slice_sample(n=1000, replace=TRUE)
@@ -97,7 +98,7 @@ names_sample.df %<>%
 names_sample.df %>% 
   add_gender_predictions(
               dicts = "genderize",
-              col_map=c(given = "firstname") ) -> res
+              col_map=c(ginput_key = "firstname") ) -> res
 
 res
 ```
@@ -108,32 +109,32 @@ res %>% dplyr::select("og_gender_pr_F") %>% gender_mean()
 res %>% dplyr::select("og_gender_details") %>% gender_mean(simplify_output = "tidy")
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
-  dplyr::group_by(AM) %>% dplyr::summarise(prop_F= mean(og_pr_F,na.rm=TRUE))
+  dplyr::group_by(AM) %>% dplyr::summarise(prop_F= mean(og_gender_pr_F ,na.rm=TRUE))
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
-  dplyr::group_by(AM) %>% dplyr::summarise(prop_F = gender_mean(og_pr_F,simplify_output="scalar"))
+  dplyr::group_by(AM) %>% dplyr::summarise(prop_F = gender_mean(og_gender_pr_F ,simplify_output="scalar"))
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% dplyr::summarise(prop_genders = gender_mean(og_gender_pr_F,simplify_output="row")) %>% tidyr::unpack(prop_genders)
 
 res %>% dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
-  dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_pr_F))) %>% tidyr::unnest(prop_F)
+  dplyr::group_by(AM) %>% dplyr::summarise(prop_F = list( gender_mean(og_gender_pr_F ))) %>% tidyr::unnest(prop_F)
 ```
 
 ```{r estimates-with-uncertainty}
 
-res %>% dplyr::select("og_details") %>%
+res %>% dplyr::select("og_gender_details") %>%
   gender_estimate(simplify_output="scalar", estimates=c("mean","sd"))
 
 res %>% 
   dplyr::mutate(AM=stringr::str_starts(firstname,"[A-M]")) %>%
   dplyr::group_by(AM) %>% 
   dplyr::summarise(gender_estimates =
-        gender_estimate(og_pr_F,simplify_output="row",
+        gender_estimate(og_gender_pr_F,simplify_output="row",
                         estimates=c("mean","sd"))) %>% 
   tidyr::unpack(gender_estimates)
 
-res %>% dplyr::select("og_details") %>%
+res %>% dplyr::select("og_gender_details") %>%
   dplyr::slice_sample(n=100) %>%
   gender_estimate()
 ```
@@ -159,26 +160,29 @@ show_dict("wgen2")
 names_sample.df %>% 
   add_gender_predictions(
               dicts = "wgen2",
-              col_map=c(given = "firstname") ) 
+              col_map=c(input_key = "firstname") ) 
 ```
 
 ```{r matching-over-time-samp}
 
 load_dict("ssa")
 show_dict("ssa") -> ssa.df
-ssa.df %>% filter(given=="leslie") %>%
-  filter(year<10000) %>%
-  ggplot(aes(x=year,y=pr_F)) + geom_point()
+ssa.df %>% dplyr::filter(given=="Leslie") %>%
+  dplyr::filter(!is.na(year)) %>%
+  ggplot2::ggplot(ggplot2::aes(x=year,y=pr_F)) + ggplot2::geom_point()
 
-ssa.df %>% filter(year < 10000, n>50) %>% pull(given) %>% unique() %>% sample(500,replace=TRUE) -> sampleg
-ssa.df %>% pull(year) %>% unique() %>% sample(500,replace=TRUE) -> samplet
+ssa.df %>% 
+  dplyr::filter(!is.na(year) , n>50) %>% 
+  dplyr::pull(given) %>% unique() %>% sample(500,replace=TRUE) -> sampleg
 
-mixedyear.df <- tibble(given=sampleg,year=samplet)
+ssa.df %>% dplyr::pull(year) %>% unique() %>% sample(500,replace=TRUE) -> samplet
+
+mixedyear.df <- tibble::tibble(given=sampleg,year=samplet)
 
 mixedyear.df  %<>% 
   add_gender_predictions(
               dicts = "ssa",
-              col_map=c(given = "given") ) 
+              col_map=c(input_key = "given") ) 
 
 mixedyear.df
 ```
@@ -432,4 +436,21 @@ res <- add_dict_matches(sample_editors_plus.df,
                      matchFirstN = 2)  
 
 res
+```
+
+```{r predict-race}
+
+show_dict("rosenmanGiven")
+
+names_sample.df %>%  
+  dplyr::mutate(dummycountry="US") %>%
+  add_category_predictions(
+              dicts = "rosenmanGiven",
+              col_map=c( input_key = "firstname", 
+                         input_country = "dummycountry" ) ) -> res
+
+res
+
+res %>% dplyr::select(og_classification_details) %>%
+ class_estimate( estimates=c("mean","sd"))
 ```

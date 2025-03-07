@@ -145,7 +145,7 @@ og_find_datadir <- function() {
 #' @importFrom tibble tibble
 #' @importFrom tidyr pivot_wider
 
-og_dict_normalize <- function(x, min_count_default=1, keys_only = FALSE) {
+og_dict_normalize <- function(x, min_count_default=1) {
 
   data_norm <- x
 
@@ -358,6 +358,30 @@ og_dict_load_internal <- function(name, entry) {
     }
     og_dict_import( x = ds , name = name )
   }
+}
+
+og_dict_load_api <- function(name, entry) {
+  # - if save file, load it into environment, otherwise generate empty tibble
+
+  dict_file <- og_dict_genfilepath(name)
+  if (file.exists(dict_file)) {
+    og_dict_import(name=name)
+  } else {
+
+    tmp_file <- tempfile()
+    download.file(entry[[1,"uri"]], tmp_file)
+
+    if (entry[["custom_fun"]]=="") {
+      ds <- readRDS(tmp_file)
+      comment(ds) <- entry[[1,"uri"]]
+    } else {
+      #ds <- do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
+      #              args = list(src=tmp_file))
+      ds <- tibble::tibble()
+    }
+    og_dict_import( x = ds , name = name )
+  }
+
 }
 
 #' @importFrom dplyr bind_rows

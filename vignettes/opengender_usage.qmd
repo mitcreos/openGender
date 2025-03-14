@@ -89,13 +89,12 @@ res
 ```{r gender-coding-api}
 library(magrittr)
 
-names_sample.df <- ssa_baby_names.df %>%
-  dplyr::slice_sample(n=10, replace=FALSE)
+debug(add_gender_predictions)
+debug(opengender:::og_dict_load_api)
 
-names_sample.df %<>% 
-  dplyr::bind_rows(tibble::tibble(firstname=c("Wozzleface","Hanah")))
 
 names_sample.df %>% 
+  dplyr::slice_head(n=5) %>% 
   add_gender_predictions(
               dicts = "genderize",
               col_map=c(ginput_key = "firstname") ) -> res

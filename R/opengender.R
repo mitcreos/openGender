@@ -360,30 +360,6 @@ og_dict_load_internal <- function(name, entry) {
   }
 }
 
-og_dict_load_api <- function(name, entry) {
-  # - if save file, load it into environment, otherwise generate empty tibble
-
-  dict_file <- og_dict_genfilepath(name)
-  if (file.exists(dict_file)) {
-    og_dict_import(name=name)
-  } else {
-
-    tmp_file <- tempfile()
-    download.file(entry[[1,"uri"]], tmp_file)
-
-    if (entry[["custom_fun"]]=="") {
-      ds <- readRDS(tmp_file)
-      comment(ds) <- entry[[1,"uri"]]
-    } else {
-      #ds <- do.call(paste0("og_dict_process_", entry[[1, "custom_fun"]]),
-      #              args = list(src=tmp_file))
-      ds <- tibble::tibble()
-    }
-    og_dict_import( x = ds , name = name )
-  }
-
-}
-
 #' @importFrom dplyr bind_rows
 #' @importFrom tibble tibble
 
@@ -455,6 +431,7 @@ og_dict_load_added <- function(name, entry) {
   og_dict_import(name=name)
 }
 
+#' @importFrom utils download.file
 og_dict_load_external <- function(name, entry) {
   dict_file <- og_dict_genfilepath(name)
   if (file.exists(dict_file)) {
@@ -505,9 +482,7 @@ og_dict_gendescfilepath<-function(name) {
   rv
 }
 
-og_dict_load_api <- function(name, entry) {
-  # - if save file, load it into environment, otherwise generate empty tibble
-}
+
 
 #' @importFrom dplyr mutate
 #' @importFrom dplyr group_by
@@ -922,17 +897,42 @@ og_dict_process_rosenman <- function(src, cmt_str) {
   raw.df
 }
 
+# Internals: api support  --------------------------------------------------------
+
+og_dict_load_api <- function(name, entry) {
+  # - if save file, load it into environment, otherwise generate empty tibble
+
+  dict_file <- og_dict_genfilepath(name)
+  if (file.exists(dict_file)) {
+    og_dict_import(name=name)
+  } else {
+
+    tmp_file <- tempfile()
+    utils::download.file(entry[[1,"uri"]], tmp_file)
+
+    if (entry[["custom_fun"]]=="") {
+      ds <- tibble::tibble()
+      comment(ds) <- entry[[1,"desc"]]
+    } else {
+      ds <- do.call(paste0("og_dict_api_init_", entry[[1, "custom_fun"]]),
+                    args = list(src=tmp_file))
+    }
+    og_dict_import( x = ds , name = name )
+  }
+
+}
+
 #' @importFrom dplyr mutate
 #' @importFrom memoise drop_cache
-og_api_call <- function(given, country, year, apikey, host, service) {
-  res <- mem_og_api_call_inner(given, country, year, apikey, host, service)
+og_api_call <- function(key, country, year, apikey, host, service) {
+  res <- mem_og_api_call_inner(key , country, year, apikey, host, service)
   if (!res[["complete"]]) {
-    memoise::drop_cache(mem_og_api_call_inner)(given, country, year, apikey, host, service)
+    memoise::drop_cache(mem_og_api_call_inner)(key, country, year, apikey, host, service)
   }
   # complete response columns
 
   if (!"given" %in% colnames(res)) {
-    res %<>%  dplyr::mutate(given = NA)
+    res %<>%  dplyr::mutate(key = NA)
   }
   if (!"count" %in% colnames(res)) {
     res %<>% dplyr::mutate(count = NA)
@@ -959,8 +959,8 @@ og_api_call <- function(given, country, year, apikey, host, service) {
 
 # Not used directly -- wrapped in memoise at startup
 og_api_call_inner <-
-  function(given, country, year, apikey, host, service) {
-    ql <- list(given = given, service = service)
+  function(key, country, year, apikey, host, service) {
+    ql <- list(key = key, service = service)
 
     if (!missing(apikey)) {
       ql[["apikey"]] <- apikey
@@ -993,7 +993,7 @@ og_api_call_inner <-
 #' @importFrom httr2 resp_body_json
 #' @importFrom jsonlite fromJSON
 
-og_url_build_genderize<-function(host = "api.genderize.io", given, country, year, apikey, service) {
+og_api_url_build_genderize<-function(host = "api.genderize.io", given, country, year, apikey, service) {
   uri <- list()
   uri[["scheme"]] <- "https"
   uri[["port"]] <- 80
@@ -1048,6 +1048,10 @@ og_url_build_genderize<-function(host = "api.genderize.io", given, country, year
   }
 
   rv
+}
+
+og_api_url_build_parse <- function () {
+
 }
 
 # Internals: estimation functions  --------------------------------------------------------
